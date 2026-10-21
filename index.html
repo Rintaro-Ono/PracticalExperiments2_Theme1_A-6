@@ -8,115 +8,186 @@
   </head>
   <body>
     <main class="container">
-      <h1>聖徳太子会計</h1>
+      <header class="page-header">
+        <h1>聖徳太子会計</h1>
+      </header>
 
-      // ユーザーIDと名前を入力する画面
-      <div class="user-input">
-        <label for="user-id">ユーザーID:</label>
-        <input type="text" id="user-id" name="user-id" required />
-        <label for="user-name">名前:</label>
-        <input type="text" id="user-name" name="user-name" required />
-      </div>
+      <!-- ログイン / ユーザー情報 -->
+      <section class="login-panel" aria-labelledby="login-title">
+        <h2 id="login-title">ユーザー情報</h2>
+        <div class="user-input">
+          <label for="user-id">ユーザーID</label>
+          <input type="text" id="user-id" name="user-id" placeholder="例: s001" required />
 
-      // 以下は、ユーザーがログインした後に表示される画面
-      // イベントをリストで表示する
-      <div class="event-list">
-        <h2>イベント一覧</h2>
-        <ul id="event-list">
-          <!-- イベントのリストがここに表示される -->
+          <label for="user-name">名前</label>
+          <input type="text" id="user-name" name="user-name" placeholder="例: 田中 太郎" required />
+        </div>
+      </section>
+
+      <!-- イベント一覧 -->
+      <section class="event-panel" aria-labelledby="event-list-title">
+        <div class="panel-header">
+          <h2 id="event-list-title">イベント一覧</h2>
+          <button type="button" class="add-event-button">イベントを追加</button>
+        </div>
+
+        <ul id="event-list" aria-live="polite">
+          <!-- JS でイベント項目を描画 -->
         </ul>
-      </div>
+      </section>
 
-      // リスト上部に「イベントを追加」ボタンを配置する
-      <button class="add-event-button">イベントを追加</button>
+      <!-- イベント詳細 -->
+      <section class="event-detail-panel" aria-labelledby="event-detail-title">
+        <h2 id="event-detail-title">イベント詳細</h2>
 
-      // 「イベントを追加」ボタンをクリックすると、イベント名と金額を入力して、参加者をリストから選択するモーダルウィンドウが表示される
-      <div class="modal">
-        <div class="modal-content">
-          <span class="close">&times;</span>
-          <h2>イベントを追加</h2>
-          <form id="add-event-form">
-            <label for="event-name">イベント名:</label>
-            <input type="text" id="event-name" name="event-name" required />
-            <label for="event-amount">金額:</label>
-            <input type="number" id="event-amount" name="event-amount" required />
-            <button type="submit">追加</button>
-          </form>
+        <dl class="event-detail-list">
+          <div>
+            <dt>イベント名</dt>
+            <dd id="detail-event-name">-</dd>
+          </div>
+          <div>
+            <dt>金額</dt>
+            <dd id="detail-event-amount">-</dd>
+          </div>
+          <div>
+            <dt>日付</dt>
+            <dd id="detail-event-date">-</dd>
+          </div>
+        </dl>
+
+        <h3>参加者</h3>
+        <ul id="detail-participant-list">
+          <!-- JS で参加者を描画 -->
+        </ul>
+
+        <div class="action-buttons">
+          <button type="button" class="edit-event-button">編集</button>
+          <button type="button" class="delete-event-button">削除</button>
         </div>
-      </div>
+      </section>
 
-      //リストのイベントをクリックすると、イベントの詳細情報（イベント名、金額、参加者）が表示される
-      <div class="event-details">
-        <h2>イベント詳細</h2>
-        <p>イベント名: <span id="detail-event-name"></span></p>
-        <p>金額: <span id="detail-event-amount"></span></p>
-        <p>日付: <span id="detail-event-date"></span></p>
-      </div>
+      <!-- 参加者一覧 -->
+      <section class="participant-panel" aria-labelledby="participant-title">
+        <h2 id="participant-title">参加者一覧</h2>
 
-      // イベントの詳細情報の下に「編集」ボタンと「削除」ボタンを配置する
-      <button class="edit-event-button">編集</button>
-      <button class="delete-event-button">削除</button>
-
-      // 「編集」ボタンをクリックすると、イベント名と金額、参加者を編集するモーダルウィンドウが表示される
-      <div class="edit-modal">
-        <div class="modal-content">
-          <span class="close">&times;</span>
-          <h2>イベントを編集</h2>
-          <form id="edit-event-form">
-            <label for="edit-event-name">イベント名:</label>
-            <input type="text" id="edit-event-name" name="edit-event-name" required />
-            <label for="edit-event-amount">金額:</label>
-            <input type="number" id="edit-event-amount" name="edit-event-amount" required />
-            <button type="submit">保存</button>
-          </form>
-        </div>
-      </div>
-
-      // 「削除」ボタンをクリックすると、イベントを削除する確認モーダルウィンドウが表示される
-      <div class="delete-modal">
-        <div class="modal-content">
-          <span class="close">&times;</span>
-          <h2>イベントを削除</h2>
-          <p>本当にこのイベントを削除しますか？</p>
-          <button class="confirm-delete-button">削除</button>
-          <button class="cancel-delete-button">キャンセル</button>
-        </div>
-      </div>
-
-      // イベントの詳細情報の下に全参加者のリスト（列が「名前」、「状態（未入金/承認待ち/承認済み）」）を表示する
-      // ユーザーがイベントのホストなら、「状態」を変更できるようにする
-      <div class="participant-list">
-        <h2>参加者一覧</h2>
-        <table id="participant-list">
+        <table id="participant-table">
           <thead>
             <tr>
-              <th>名前</th>
-              <th>状態</th>
+              <th scope="col">名前</th>
+              <th scope="col">状態</th>
             </tr>
           </thead>
-          <tbody>
-            <!-- 参加者のリストがここに表示される -->
+          <tbody id="participant-table-body">
+            <!-- JS で参加者の状態を描画 -->
           </tbody>
         </table>
-      </div>
+      </section>
+    </main>
 
-      // 参加者の状態を変更するためのモーダルウィンドウ
-      <div class="status-modal">
-        <div class="modal-content">
-          <span class="close">&times;</span>
-          <h2>参加者の状態を変更</h2>
-          <form id="status-form">
-            <label for="status-select">状態:</label>
+    <!-- イベント追加モーダル -->
+    <div class="modal hidden" id="add-event-modal" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="add-event-title">
+        <button type="button" class="modal-close" aria-label="閉じる">×</button>
+        <h2 id="add-event-title">イベントを追加</h2>
+
+        <form id="add-event-form">
+          <div class="form-group">
+            <label for="event-name">イベント名</label>
+            <input type="text" id="event-name" name="event-name" required />
+          </div>
+
+          <div class="form-group">
+            <label for="event-amount">金額</label>
+            <input type="number" id="event-amount" name="event-amount" min="0" required />
+          </div>
+
+          <div class="form-group">
+            <label for="event-date">日付</label>
+            <input type="date" id="event-date" name="event-date" required />
+          </div>
+
+          <fieldset class="participant-select-field">
+            <legend>参加者を選択</legend>
+            <ul id="participant-checkbox-list">
+              <!-- JS でチェックボックスを描画 -->
+            </ul>
+          </fieldset>
+
+          <div class="form-actions">
+            <button type="submit">追加</button>
+            <button type="button" class="modal-cancel">キャンセル</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- イベント編集モーダル -->
+    <div class="modal hidden" id="edit-event-modal" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="edit-event-title">
+        <button type="button" class="modal-close" aria-label="閉じる">×</button>
+        <h2 id="edit-event-title">イベントを編集</h2>
+
+        <form id="edit-event-form">
+          <div class="form-group">
+            <label for="edit-event-name">イベント名</label>
+            <input type="text" id="edit-event-name" name="edit-event-name" required />
+          </div>
+
+          <div class="form-group">
+            <label for="edit-event-amount">金額</label>
+            <input type="number" id="edit-event-amount" name="edit-event-amount" min="0" required />
+          </div>
+
+          <div class="form-group">
+            <label for="edit-event-date">日付</label>
+            <input type="date" id="edit-event-date" name="edit-event-date" required />
+          </div>
+
+          <div class="form-actions">
+            <button type="submit">保存</button>
+            <button type="button" class="modal-cancel">キャンセル</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 削除確認モーダル -->
+    <div class="modal hidden" id="delete-event-modal" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="delete-event-title">
+        <button type="button" class="modal-close" aria-label="閉じる">×</button>
+        <h2 id="delete-event-title">イベントを削除</h2>
+        <p>本当にこのイベントを削除しますか？</p>
+
+        <div class="form-actions">
+          <button type="button" class="confirm-delete-button">削除</button>
+          <button type="button" class="modal-cancel">キャンセル</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参加者状態変更モーダル -->
+    <div class="modal hidden" id="status-modal" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="status-title">
+        <button type="button" class="modal-close" aria-label="閉じる">×</button>
+        <h2 id="status-title">参加者の状態を変更</h2>
+
+        <form id="status-form">
+          <div class="form-group">
+            <label for="status-select">状態</label>
             <select id="status-select" name="status-select" required>
               <option value="未入金">未入金</option>
               <option value="承認待ち">承認待ち</option>
               <option value="承認済み">承認済み</option>
             </select>
+          </div>
+
+          <div class="form-actions">
             <button type="submit">変更</button>
-          </form>
-        </div>
+            <button type="button" class="modal-cancel">キャンセル</button>
+          </div>
+        </form>
       </div>
-    </main>
+    </div>
 
     <script src="app.js"></script>
   </body>
