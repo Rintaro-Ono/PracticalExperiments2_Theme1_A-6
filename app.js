@@ -1,134 +1,355 @@
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('聖徳太子会計');
+const appState = {
+  users: [],
+  circles: [],
+  memberships: [],
+  events: [],
+};
 
-  const eventForm = document.getElementById('event-form');
-  const memberForm = document.getElementById('member-form');
-  const eventTitleInput = document.getElementById('event-title');
-  const eventAmountInput = document.getElementById('event-amount');
-  const eventHostSelect = document.getElementById('event-host');
-  const paymentList = document.getElementById('payment-list');
-  const memberNameInput = document.getElementById('member-name');
+function createId(prefix) {
+  const randomPart = Math.random().toString(16).slice(2, 10);
+  return `${prefix}_${Date.now()}_${randomPart}`;
+}
 
-  const members = [
-    { member_id: 1, name: '山田', role: '幹事' },
-    { member_id: 2, name: '鈴木', role: 'メンバー' },
-    { member_id: 3, name: '佐藤', role: 'メンバー' },
-  ];
+function findUserById(userId) {
+  return appState.users.find((user) => user.userId === userId) || null;
+}
 
-  const events = [];
+function findCircleById(circleId) {
+  return appState.circles.find((circle) => circle.circleId === circleId) || null;
+}
 
-  const statusLabels = {
-    unpaid: '未払い',
-    pending: '確認中',
-    approved: '支払い済み',
+function getMembershipForUserInCircle(userId, circleId) {
+  return (
+    appState.memberships.find(
+      (membership) =>
+        membership.userId === userId && membership.circleId === circleId
+    ) || null
+  );
+}
+
+function getCircleMembers(circleId) {
+  const memberships = appState.memberships.filter(
+    (membership) => membership.circleId === circleId
+  );
+
+  return memberships.map((membership) => {
+    const user = findUserById(membership.userId);
+    return {
+      ...membership,
+      name: user ? user.name : 'Unknown',
+    };
+  });
+}
+
+function getCircleLeaderIds(circleId) {
+  return appState.memberships
+    .filter(
+      (membership) =>
+        membership.circleId === circleId && membership.role === 'leader'
+    )
+    .map((membership) => membership.userId);
+}
+
+function isLeader(userId, circleId) {
+  return getCircleLeaderIds(circleId).includes(userId);
+}
+
+function createUser({ name, email = '', snsId = '' } = {}) {
+  if (!name || !name.trim()) {
+    throw new Error('ユーザー名は必須です');
+  }
+
+  const user = {
+    userId: createId('user'),
+    name: name.trim(),
+    email,
+    snsId,
+    createdAt: new Date().toISOString(),
   };
 
-  function renderHostOptions() {
-    eventHostSelect.innerHTML = members
-      .map(
-        (member) =>
-          `<option value="${member.member_id}">${member.name}</option>`
-      )
-      .join('');
+  appState.users.push(user);
+  return user;
+}
+
+function generateInviteUrl(circleId, baseUrl = 'https://example.com/circle') {
+  return `${baseUrl}/${circleId}`;
+}
+
+function createCircle({ name, createdByUserId, baseUrl = 'https://example.com/circle' }) {
+  const creator = findUserById(createdByUserId);
+  if (!creator) {
+    throw new Error('作成者が見つかりません');
   }
 
-  function renderPaymentList() {
-    paymentList.innerHTML = members
-      .map((member) => {
-        const latestEvent = events[events.length - 1];
-        const paymentStatus = latestEvent?.payments?.[member.member_id] || 'unpaid';
+  const circle = {
+    circleId: createId('circle'),
+    name: name.trim(),
+    createdByUserId,
+    inviteUrl: '',
+    createdAt: new Date().toISOString(),
+  };
 
-        return `
-          <tr>
-            <td>${member.name}</td>
-            <td>${member.role}</td>
-            <td>${statusLabels[paymentStatus]}</td>
-            <td>
-              <button class="status-btn" data-member-id="${member.member_id}" data-status="pending">
-                確認中
-              </button>
-              <button class="status-btn" data-member-id="${member.member_id}" data-status="approved">
-                承認
-              </button>
-            </td>
-          </tr>
-        `;
-      })
-      .join('');
+  circle.inviteUrl = generateInviteUrl(circle.circleId, baseUrl);
+  appState.circles.push(circle);
+
+  const leaderMembership = {
+    membershipId: createId('membership'),
+    userId: createdByUserId,
+    circleId: circle.circleId,
+    memberId: createId('member'),
+    role: 'leader',
+    joinedAt: new Date().toISOString(),
+  };
+
+  appState.memberships.push(leaderMembership);
+  return circle;
+}
+
+function joinCircle({ userId, circleId }) {
+  const user = findUserById(userId);
+  const circle = findCircleById(circleId);
+
+  if (!user) {
+    throw new Error('ユーザーが見つかりません');
   }
 
-  function createEvent(title, amount, hostId) {
-    const newEvent = {
-      event_id: Date.now(),
-      title,
-      amount,
-      host_id: hostId,
-      payments: {},
-    };
-
-    members.forEach((member) => {
-      newEvent.payments[member.member_id] = 'unpaid';
-    });
-
-    events.push(newEvent);
-    renderPaymentList();
-    return newEvent;
+  if (!circle) {
+    throw new Error('そのサークルは存在しません');
   }
 
-  function updatePaymentStatus(memberId, status) {
-    const latestEvent = events[events.length - 1];
-    if (!latestEvent) return;
-
-    latestEvent.payments[memberId] = status;
-    renderPaymentList();
+  const existingMembership = getMembershipForUserInCircle(userId, circleId);
+  if (existingMembership) {
+    return existingMembership;
   }
 
-  eventForm.addEventListener('submit', (event) => {
-    event.preventDefault();
+  const newMembership = {
+    membershipId: createId('membership'),
+    userId,
+    circleId,
+    memberId: createId('member'),
+    role: 'member',
+    joinedAt: new Date().toISOString(),
+  };
 
-    const title = eventTitleInput.value.trim();
-    const amount = Number(eventAmountInput.value);
-    const hostId = Number(eventHostSelect.value);
+  appState.memberships.push(newMembership);
+  return newMembership;
+}
 
-    if (!title || !amount) {
-      alert('イベント名と金額を入力してください');
-      return;
-    }
+function grantLeaderRole({ actingUserId, circleId, targetUserId }) {
+  const actingMembership = getMembershipForUserInCircle(actingUserId, circleId);
+  const targetMembership = getMembershipForUserInCircle(targetUserId, circleId);
 
-    createEvent(title, amount, hostId);
-    alert(`${title} を作成しました（${amount}円）`);
+  if (!actingMembership) {
+    throw new Error('実行者はそのサークルのメンバーではありません');
+  }
+
+  if (!isLeader(actingUserId, circleId)) {
+    throw new Error('幹部権限がないため実行できません');
+  }
+
+  if (!targetMembership) {
+    throw new Error('対象ユーザーはそのサークルに参加していません');
+  }
+
+  targetMembership.role = 'leader';
+  return targetMembership;
+}
+
+function createEvent({
+  circleId,
+  createdByUserId,
+  title,
+  amount,
+  notes = '',
+  targetMemberIds = [],
+}) {
+  const circle = findCircleById(circleId);
+  if (!circle) {
+    throw new Error('対象のサークルが存在しません');
+  }
+
+  if (!isLeader(createdByUserId, circleId)) {
+    throw new Error('幹部権限を持つ人だけがイベントを作成できます');
+  }
+
+  if (!title || !title.trim()) {
+    throw new Error('イベント名は必須です');
+  }
+
+  if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+    throw new Error('金額は0より大きい数値を設定してください');
+  }
+
+  const availableMembers = getCircleMembers(circleId);
+  const finalTargetMemberIds =
+    targetMemberIds.length > 0
+      ? targetMemberIds.filter((memberId) =>
+          availableMembers.some((member) => member.memberId === memberId)
+        )
+      : availableMembers.map((member) => member.memberId);
+
+  if (finalTargetMemberIds.length === 0) {
+    throw new Error('対象メンバーを1人以上選択してください');
+  }
+
+  const event = {
+    eventId: createId('event'),
+    circleId,
+    createdByUserId,
+    title: title.trim(),
+    amount: Number(amount),
+    notes: notes.trim(),
+    targetMemberIds: finalTargetMemberIds,
+    paymentStatus: {},
+    createdAt: new Date().toISOString(),
+  };
+
+  finalTargetMemberIds.forEach((memberId) => {
+    event.paymentStatus[memberId] = 'unpaid';
   });
 
-  memberForm.addEventListener('submit', (event) => {
-    event.preventDefault();
+  appState.events.push(event);
+  return event;
+}
 
-    const name = memberNameInput.value.trim();
-    if (!name) {
-      alert('名前を入力してください');
-      return;
-    }
+function getMyMembershipInCircle(userId, circleId) {
+  return getMembershipForUserInCircle(userId, circleId);
+}
 
-    const newMember = {
-      member_id: Date.now(),
-      name,
-      role: 'メンバー',
-    };
+function getMyEventsForCircle({ userId, circleId }) {
+  const myMembership = getMyMembershipInCircle(userId, circleId);
+  if (!myMembership) {
+    return [];
+  }
 
-    members.push(newMember);
-    memberNameInput.value = '';
-    renderHostOptions();
-    renderPaymentList();
-  });
+  return appState.events
+    .filter(
+      (event) =>
+        event.circleId === circleId &&
+        event.targetMemberIds.includes(myMembership.memberId)
+    )
+    .map((event) => ({
+      eventId: event.eventId,
+      title: event.title,
+      amount: event.amount,
+      notes: event.notes,
+      status: event.paymentStatus[myMembership.memberId] || 'unpaid',
+      createdAt: event.createdAt,
+    }));
+}
 
-  paymentList.addEventListener('click', (event) => {
-    const button = event.target.closest('.status-btn');
-    if (!button) return;
+function getEventStatusSummary(circleId, eventId) {
+  const event = appState.events.find(
+    (item) => item.circleId === circleId && item.eventId === eventId
+  );
 
-    const memberId = Number(button.dataset.memberId);
-    const status = button.dataset.status;
-    updatePaymentStatus(memberId, status);
-  });
+  if (!event) {
+    return [];
+  }
 
-  renderHostOptions();
-  renderPaymentList();
-});
+  return getCircleMembers(circleId).map((member) => ({
+    memberId: member.memberId,
+    name: member.name,
+    role: member.role,
+    status: event.paymentStatus[member.memberId] || 'unpaid',
+  }));
+}
+
+function updatePaymentStatus({
+  actingUserId,
+  circleId,
+  eventId,
+  memberId,
+  status,
+}) {
+  const validStatuses = ['unpaid', 'pending', 'paid'];
+  if (!validStatuses.includes(status)) {
+    throw new Error('ステータスは unpaid, pending, paid のいずれかにしてください');
+  }
+
+  const event = appState.events.find(
+    (item) => item.circleId === circleId && item.eventId === eventId
+  );
+
+  if (!event) {
+    throw new Error('対象イベントが存在しません');
+  }
+
+  const targetMembership = appState.memberships.find(
+    (membership) =>
+      membership.circleId === circleId && membership.memberId === memberId
+  );
+
+  if (!targetMembership) {
+    throw new Error('対象メンバーがそのサークルに存在しません');
+  }
+
+  const actingMembership = getMembershipForUserInCircle(actingUserId, circleId);
+  if (!actingMembership) {
+    throw new Error('操作者はそのサークルに参加していません');
+  }
+
+  const isActingMember = actingMembership.memberId === memberId;
+  const isActingLeader = isLeader(actingUserId, circleId);
+
+  if (!isActingLeader && !isActingMember) {
+    throw new Error('このメンバーの支払い状況は更新できません');
+  }
+
+  if (isActingMember && !isActingLeader && status !== 'pending') {
+    throw new Error('一般メンバーは「承認待ち」状態のみ更新できます');
+  }
+
+  if (!event.targetMemberIds.includes(memberId)) {
+    throw new Error('そのイベントの対象メンバーではありません');
+  }
+
+  event.paymentStatus[memberId] = status;
+  return event.paymentStatus[memberId];
+}
+
+function findEventById(eventId) {
+  return appState.events.find((event) => event.eventId === eventId) || null;
+}
+
+function getCircleSummary(circleId) {
+  const circle = findCircleById(circleId);
+  if (!circle) {
+    throw new Error('サークルが存在しません');
+  }
+
+  const members = getCircleMembers(circleId);
+  const events = appState.events.filter((event) => event.circleId === circleId);
+
+  return {
+    circle,
+    members,
+    events,
+    totalMembers: members.length,
+    totalEvents: events.length,
+  };
+}
+
+const accountingSystem = {
+  appState,
+  createUser,
+  createCircle,
+  joinCircle,
+  grantLeaderRole,
+  createEvent,
+  getCircleMembers,
+  getMyEventsForCircle,
+  getEventStatusSummary,
+  updatePaymentStatus,
+  getCircleSummary,
+  findEventById,
+  generateInviteUrl,
+};
+
+if (typeof window !== 'undefined') {
+  window.accountingSystem = accountingSystem;
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = accountingSystem;
+}
