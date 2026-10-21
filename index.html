@@ -9,6 +9,113 @@
   <body>
     <main class="container">
       <h1>聖徳太子会計</h1>
+
+      // ユーザーIDと名前を入力する画面
+      <div class="user-input">
+        <label for="user-id">ユーザーID:</label>
+        <input type="text" id="user-id" name="user-id" required />
+        <label for="user-name">名前:</label>
+        <input type="text" id="user-name" name="user-name" required />
+      </div>
+
+      // 以下は、ユーザーがログインした後に表示される画面
+      // イベントをリストで表示する
+      <div class="event-list">
+        <h2>イベント一覧</h2>
+        <ul id="event-list">
+          <!-- イベントのリストがここに表示される -->
+        </ul>
+      </div>
+
+      // リスト上部に「イベントを追加」ボタンを配置する
+      <button class="add-event-button">イベントを追加</button>
+
+      // 「イベントを追加」ボタンをクリックすると、イベント名と金額を入力して、参加者をリストから選択するモーダルウィンドウが表示される
+      <div class="modal">
+        <div class="modal-content">
+          <span class="close">&times;</span>
+          <h2>イベントを追加</h2>
+          <form id="add-event-form">
+            <label for="event-name">イベント名:</label>
+            <input type="text" id="event-name" name="event-name" required />
+            <label for="event-amount">金額:</label>
+            <input type="number" id="event-amount" name="event-amount" required />
+            <button type="submit">追加</button>
+          </form>
+        </div>
+      </div>
+
+      //リストのイベントをクリックすると、イベントの詳細情報（イベント名、金額、参加者）が表示される
+      <div class="event-details">
+        <h2>イベント詳細</h2>
+        <p>イベント名: <span id="detail-event-name"></span></p>
+        <p>金額: <span id="detail-event-amount"></span></p>
+        <p>日付: <span id="detail-event-date"></span></p>
+      </div>
+
+      // イベントの詳細情報の下に「編集」ボタンと「削除」ボタンを配置する
+      <button class="edit-event-button">編集</button>
+      <button class="delete-event-button">削除</button>
+
+      // 「編集」ボタンをクリックすると、イベント名と金額、参加者を編集するモーダルウィンドウが表示される
+      <div class="edit-modal">
+        <div class="modal-content">
+          <span class="close">&times;</span>
+          <h2>イベントを編集</h2>
+          <form id="edit-event-form">
+            <label for="edit-event-name">イベント名:</label>
+            <input type="text" id="edit-event-name" name="edit-event-name" required />
+            <label for="edit-event-amount">金額:</label>
+            <input type="number" id="edit-event-amount" name="edit-event-amount" required />
+            <button type="submit">保存</button>
+          </form>
+        </div>
+      </div>
+
+      // 「削除」ボタンをクリックすると、イベントを削除する確認モーダルウィンドウが表示される
+      <div class="delete-modal">
+        <div class="modal-content">
+          <span class="close">&times;</span>
+          <h2>イベントを削除</h2>
+          <p>本当にこのイベントを削除しますか？</p>
+          <button class="confirm-delete-button">削除</button>
+          <button class="cancel-delete-button">キャンセル</button>
+        </div>
+      </div>
+
+      // イベントの詳細情報の下に全参加者のリスト（列が「名前」、「状態（未入金/承認待ち/承認済み）」）を表示する
+      // ユーザーがイベントのホストなら、「状態」を変更できるようにする
+      <div class="participant-list">
+        <h2>参加者一覧</h2>
+        <table id="participant-list">
+          <thead>
+            <tr>
+              <th>名前</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 参加者のリストがここに表示される -->
+          </tbody>
+        </table>
+      </div>
+
+      // 参加者の状態を変更するためのモーダルウィンドウ
+      <div class="status-modal">
+        <div class="modal-content">
+          <span class="close">&times;</span>
+          <h2>参加者の状態を変更</h2>
+          <form id="status-form">
+            <label for="status-select">状態:</label>
+            <select id="status-select" name="status-select" required>
+              <option value="未入金">未入金</option>
+              <option value="承認待ち">承認待ち</option>
+              <option value="承認済み">承認済み</option>
+            </select>
+            <button type="submit">変更</button>
+          </form>
+        </div>
+      </div>
     </main>
 
     <script src="app.js"></script>
