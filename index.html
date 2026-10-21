@@ -12,20 +12,29 @@
         <h1>聖徳太子会計</h1>
       </header>
 
-      <!-- ログイン / ユーザー情報 -->
+      <!-- ログイン画面 -->
       <section class="login-panel" aria-labelledby="login-title">
         <h2 id="login-title">ユーザー情報</h2>
-        <div class="user-input">
-          <label for="user-id">ユーザーID</label>
-          <input type="text" id="user-id" name="user-id" placeholder="例: s001" required />
 
-          <label for="user-name">名前</label>
-          <input type="text" id="user-name" name="user-name" placeholder="例: 田中 太郎" required />
-        </div>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="user-id">ユーザーID</label>
+            <input type="text" id="user-id" name="user-id" placeholder="例: s001" required />
+          </div>
+
+          <div class="form-group">
+            <label for="user-name">名前</label>
+            <input type="text" id="user-name" name="user-name" placeholder="例: 田中 太郎" required />
+          </div>
+
+          <div class="form-actions">
+            <button type="submit">ログイン</button>
+          </div>
+        </form>
       </section>
 
       <!-- イベント一覧 -->
-      <section class="event-panel" aria-labelledby="event-list-title">
+      <section class="event-panel" aria-labelledby="event-list-title" hidden>
         <div class="panel-header">
           <h2 id="event-list-title">イベント一覧</h2>
           <button type="button" class="add-event-button">イベントを追加</button>
@@ -37,7 +46,7 @@
       </section>
 
       <!-- イベント詳細 -->
-      <section class="event-detail-panel" aria-labelledby="event-detail-title">
+      <section class="event-detail-panel" aria-labelledby="event-detail-title" hidden>
         <h2 id="event-detail-title">イベント詳細</h2>
 
         <dl class="event-detail-list">
@@ -67,7 +76,7 @@
       </section>
 
       <!-- 参加者一覧 -->
-      <section class="participant-panel" aria-labelledby="participant-title">
+      <section class="participant-panel" aria-labelledby="participant-title" hidden>
         <h2 id="participant-title">参加者一覧</h2>
 
         <table id="participant-table">
@@ -85,7 +94,7 @@
     </main>
 
     <!-- イベント追加モーダル -->
-    <div class="modal hidden" id="add-event-modal" aria-hidden="true">
+    <div class="modal" id="add-event-modal" aria-hidden="true" hidden>
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="add-event-title">
         <button type="button" class="modal-close" aria-label="閉じる">×</button>
         <h2 id="add-event-title">イベントを追加</h2>
@@ -122,7 +131,7 @@
     </div>
 
     <!-- イベント編集モーダル -->
-    <div class="modal hidden" id="edit-event-modal" aria-hidden="true">
+    <div class="modal" id="edit-event-modal" aria-hidden="true" hidden>
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="edit-event-title">
         <button type="button" class="modal-close" aria-label="閉じる">×</button>
         <h2 id="edit-event-title">イベントを編集</h2>
@@ -152,7 +161,7 @@
     </div>
 
     <!-- 削除確認モーダル -->
-    <div class="modal hidden" id="delete-event-modal" aria-hidden="true">
+    <div class="modal" id="delete-event-modal" aria-hidden="true" hidden>
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="delete-event-title">
         <button type="button" class="modal-close" aria-label="閉じる">×</button>
         <h2 id="delete-event-title">イベントを削除</h2>
@@ -166,7 +175,7 @@
     </div>
 
     <!-- 参加者状態変更モーダル -->
-    <div class="modal hidden" id="status-modal" aria-hidden="true">
+    <div class="modal" id="status-modal" aria-hidden="true" hidden>
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="status-title">
         <button type="button" class="modal-close" aria-label="閉じる">×</button>
         <h2 id="status-title">参加者の状態を変更</h2>
