@@ -155,6 +155,37 @@ function grantLeaderRole({ actingUserId, circleId, targetUserId }) {
   return targetMembership;
 }
 
+function normalizeDateValue(dateValue) {
+  if (!dateValue) return null;
+
+  const value = new Date(dateValue);
+  if (Number.isNaN(value.getTime())) {
+    throw new Error('期限は有効な日付を指定してください');
+  }
+
+  return value.toISOString();
+}
+
+function getDeadlineStatus(deadlineIso) {
+  if (!deadlineIso) {
+    return {
+      deadline: null,
+      isExpired: false,
+      statusText: '期限なし',
+    };
+  }
+
+  const deadline = new Date(deadlineIso);
+  const now = new Date();
+  const isExpired = now > deadline;
+
+  return {
+    deadline: deadline.toISOString(),
+    isExpired,
+    statusText: isExpired ? '期限切れ' : '期限内',
+  };
+}
+
 function createEvent({
   circleId,
   createdByUserId,
@@ -162,6 +193,7 @@ function createEvent({
   amount,
   notes = '',
   targetMemberIds = [],
+  deadline = null,
 }) {
   const circle = findCircleById(circleId);
   if (!circle) {
@@ -179,6 +211,8 @@ function createEvent({
   if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
     throw new Error('金額は0より大きい数値を設定してください');
   }
+
+  const normalizedDeadline = normalizeDateValue(deadline);
 
   const availableMembers = getCircleMembers(circleId);
   const finalTargetMemberIds =
@@ -200,6 +234,7 @@ function createEvent({
     amount: Number(amount),
     notes: notes.trim(),
     targetMemberIds: finalTargetMemberIds,
+    deadline: normalizedDeadline,
     paymentStatus: {},
     createdAt: new Date().toISOString(),
   };
@@ -228,14 +263,20 @@ function getMyEventsForCircle({ userId, circleId }) {
         event.circleId === circleId &&
         event.targetMemberIds.includes(myMembership.memberId)
     )
-    .map((event) => ({
-      eventId: event.eventId,
-      title: event.title,
-      amount: event.amount,
-      notes: event.notes,
-      status: event.paymentStatus[myMembership.memberId] || 'unpaid',
-      createdAt: event.createdAt,
-    }));
+    .map((event) => {
+      const deadlineInfo = getDeadlineStatus(event.deadline);
+      return {
+        eventId: event.eventId,
+        title: event.title,
+        amount: event.amount,
+        notes: event.notes,
+        deadline: deadlineInfo.deadline,
+        deadlineStatus: deadlineInfo.statusText,
+        isExpired: deadlineInfo.isExpired,
+        status: event.paymentStatus[myMembership.memberId] || 'unpaid',
+        createdAt: event.createdAt,
+      };
+    });
 }
 
 function getEventStatusSummary(circleId, eventId) {
@@ -247,12 +288,29 @@ function getEventStatusSummary(circleId, eventId) {
     return [];
   }
 
+  const deadlineInfo = getDeadlineStatus(event.deadline);
+
   return getCircleMembers(circleId).map((member) => ({
     memberId: member.memberId,
     name: member.name,
     role: member.role,
     status: event.paymentStatus[member.memberId] || 'unpaid',
+    deadline: deadlineInfo.deadline,
+    deadlineStatus: deadlineInfo.statusText,
+    isExpired: deadlineInfo.isExpired,
   }));
+}
+
+function getEventDeadlineInfo(circleId, eventId) {
+  const event = appState.events.find(
+    (item) => item.circleId === circleId && item.eventId === eventId
+  );
+
+  if (!event) {
+    return null;
+  }
+
+  return getDeadlineStatus(event.deadline);
 }
 
 function updatePaymentStatus({
@@ -330,9 +388,82 @@ function getCircleSummary(circleId) {
   };
 }
 
+function normalizeString(value) {
+  return String(value ?? '').trim();
+}
+
+function findUserByEmail(email) {
+  const normalizedEmail = normalizeString(email).toLowerCase();
+  return appState.users.find(
+    (user) => normalizeString(user.email).toLowerCase() === normalizedEmail
+  ) || null;
+}
+
+function findUserBySnsId(snsId) {
+  const normalizedSnsId = normalizeString(snsId).toLowerCase();
+  return appState.users.find(
+    (user) => normalizeString(user.snsId).toLowerCase() === normalizedSnsId
+  ) || null;
+}
+
+function registerUser({ name, email = '', snsId = '' } = {}) {
+  const safeName = normalizeString(name);
+  const safeEmail = normalizeString(email);
+  const safeSnsId = normalizeString(snsId);
+
+  if (!safeName) {
+    throw new Error('ユーザー名は必須です');
+  }
+
+  if (safeEmail && findUserByEmail(safeEmail)) {
+    throw new Error('このメールアドレスはすでに登録されています');
+  }
+
+  if (safeSnsId && findUserBySnsId(safeSnsId)) {
+    throw new Error('このSNS IDはすでに登録されています');
+  }
+
+  const user = {
+    userId: createId('user'),
+    name: safeName,
+    email: safeEmail,
+    snsId: safeSnsId,
+    createdAt: new Date().toISOString(),
+  };
+
+  appState.users.push(user);
+  return user;
+}
+
+function loginUser({ email = '', snsId = '' } = {}) {
+  const safeEmail = normalizeString(email);
+  const safeSnsId = normalizeString(snsId);
+
+  if (safeEmail) {
+    const user = findUserByEmail(safeEmail);
+    if (user) return user;
+  }
+
+  if (safeSnsId) {
+    const user = findUserBySnsId(safeSnsId);
+    if (user) return user;
+  }
+
+  throw new Error('該当するユーザーが見つかりません');
+}
+
+function getUserByLoginInfo({ email = '', snsId = '' } = {}) {
+  return loginUser({ email, snsId });
+}
+
 const accountingSystem = {
   appState,
   createUser,
+  registerUser,
+  loginUser,
+  getUserByLoginInfo,
+  findUserByEmail,
+  findUserBySnsId,
   createCircle,
   joinCircle,
   grantLeaderRole,
@@ -340,6 +471,7 @@ const accountingSystem = {
   getCircleMembers,
   getMyEventsForCircle,
   getEventStatusSummary,
+  getEventDeadlineInfo,
   updatePaymentStatus,
   getCircleSummary,
   findEventById,
