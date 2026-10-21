@@ -1,355 +1,388 @@
 const appState = {
-  users: [],
-  circles: [],
-  memberships: [],
-  events: [],
+  currentUser: null,
+  users: [
+    { userId: 's001', name: '田中 太郎' },
+    { userId: 's002', name: '山田 花子' },
+    { userId: 's003', name: '佐藤 次郎' },
+  ],
+  events: [
+    {
+      id: 'event_1',
+      name: '新歓費',
+      amount: 500,
+      date: '2026-11-10',
+      participants: [
+        { userId: 's001', name: '田中 太郎', status: '承認済み' },
+        { userId: 's002', name: '山田 花子', status: '未入金' },
+        { userId: 's003', name: '佐藤 次郎', status: '承認待ち' },
+      ],
+    },
+    {
+      id: 'event_2',
+      name: '合宿代',
+      amount: 1200,
+      date: '2026-11-20',
+      participants: [
+        { userId: 's001', name: '田中 太郎', status: '未入金' },
+        { userId: 's002', name: '山田 花子', status: '承認済み' },
+        { userId: 's003', name: '佐藤 次郎', status: '未入金' },
+      ],
+    },
+  ],
+  selectedEventId: null,
+  editingEventId: null,
+  changingParticipantId: null,
+};
+
+const STATUS_LABELS = {
+  未入金: '未入金',
+  承認待ち: '承認待ち',
+  承認済み: '承認済み',
 };
 
 function createId(prefix) {
-  const randomPart = Math.random().toString(16).slice(2, 10);
-  return `${prefix}_${Date.now()}_${randomPart}`;
+  return `${prefix}_${Math.random().toString(16).slice(2, 10)}_${Date.now()}`;
 }
 
-function findUserById(userId) {
+function getUserById(userId) {
   return appState.users.find((user) => user.userId === userId) || null;
 }
 
-function findCircleById(circleId) {
-  return appState.circles.find((circle) => circle.circleId === circleId) || null;
+function getEventById(eventId) {
+  return appState.events.find((event) => event.id === eventId) || null;
 }
 
-function getMembershipForUserInCircle(userId, circleId) {
-  return (
-    appState.memberships.find(
-      (membership) =>
-        membership.userId === userId && membership.circleId === circleId
-    ) || null
-  );
+function getSelectedEvent() {
+  return getEventById(appState.selectedEventId);
 }
 
-function getCircleMembers(circleId) {
-  const memberships = appState.memberships.filter(
-    (membership) => membership.circleId === circleId
-  );
-
-  return memberships.map((membership) => {
-    const user = findUserById(membership.userId);
-    return {
-      ...membership,
-      name: user ? user.name : 'Unknown',
-    };
-  });
-}
-
-function getCircleLeaderIds(circleId) {
-  return appState.memberships
-    .filter(
-      (membership) =>
-        membership.circleId === circleId && membership.role === 'leader'
-    )
-    .map((membership) => membership.userId);
-}
-
-function isLeader(userId, circleId) {
-  return getCircleLeaderIds(circleId).includes(userId);
-}
-
-function createUser({ name, email = '', snsId = '' } = {}) {
-  if (!name || !name.trim()) {
-    throw new Error('ユーザー名は必須です');
-  }
-
-  const user = {
-    userId: createId('user'),
-    name: name.trim(),
-    email,
-    snsId,
-    createdAt: new Date().toISOString(),
-  };
-
-  appState.users.push(user);
-  return user;
-}
-
-function generateInviteUrl(circleId, baseUrl = 'https://example.com/circle') {
-  return `${baseUrl}/${circleId}`;
-}
-
-function createCircle({ name, createdByUserId, baseUrl = 'https://example.com/circle' }) {
-  const creator = findUserById(createdByUserId);
-  if (!creator) {
-    throw new Error('作成者が見つかりません');
-  }
-
-  const circle = {
-    circleId: createId('circle'),
-    name: name.trim(),
-    createdByUserId,
-    inviteUrl: '',
-    createdAt: new Date().toISOString(),
-  };
-
-  circle.inviteUrl = generateInviteUrl(circle.circleId, baseUrl);
-  appState.circles.push(circle);
-
-  const leaderMembership = {
-    membershipId: createId('membership'),
-    userId: createdByUserId,
-    circleId: circle.circleId,
-    memberId: createId('member'),
-    role: 'leader',
-    joinedAt: new Date().toISOString(),
-  };
-
-  appState.memberships.push(leaderMembership);
-  return circle;
-}
-
-function joinCircle({ userId, circleId }) {
-  const user = findUserById(userId);
-  const circle = findCircleById(circleId);
-
-  if (!user) {
-    throw new Error('ユーザーが見つかりません');
-  }
-
-  if (!circle) {
-    throw new Error('そのサークルは存在しません');
-  }
-
-  const existingMembership = getMembershipForUserInCircle(userId, circleId);
-  if (existingMembership) {
-    return existingMembership;
-  }
-
-  const newMembership = {
-    membershipId: createId('membership'),
-    userId,
-    circleId,
-    memberId: createId('member'),
-    role: 'member',
-    joinedAt: new Date().toISOString(),
-  };
-
-  appState.memberships.push(newMembership);
-  return newMembership;
-}
-
-function grantLeaderRole({ actingUserId, circleId, targetUserId }) {
-  const actingMembership = getMembershipForUserInCircle(actingUserId, circleId);
-  const targetMembership = getMembershipForUserInCircle(targetUserId, circleId);
-
-  if (!actingMembership) {
-    throw new Error('実行者はそのサークルのメンバーではありません');
-  }
-
-  if (!isLeader(actingUserId, circleId)) {
-    throw new Error('幹部権限がないため実行できません');
-  }
-
-  if (!targetMembership) {
-    throw new Error('対象ユーザーはそのサークルに参加していません');
-  }
-
-  targetMembership.role = 'leader';
-  return targetMembership;
-}
-
-function createEvent({
-  circleId,
-  createdByUserId,
-  title,
-  amount,
-  notes = '',
-  targetMemberIds = [],
-}) {
-  const circle = findCircleById(circleId);
-  if (!circle) {
-    throw new Error('対象のサークルが存在しません');
-  }
-
-  if (!isLeader(createdByUserId, circleId)) {
-    throw new Error('幹部権限を持つ人だけがイベントを作成できます');
-  }
-
-  if (!title || !title.trim()) {
-    throw new Error('イベント名は必須です');
-  }
-
-  if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
-    throw new Error('金額は0より大きい数値を設定してください');
-  }
-
-  const availableMembers = getCircleMembers(circleId);
-  const finalTargetMemberIds =
-    targetMemberIds.length > 0
-      ? targetMemberIds.filter((memberId) =>
-          availableMembers.some((member) => member.memberId === memberId)
-        )
-      : availableMembers.map((member) => member.memberId);
-
-  if (finalTargetMemberIds.length === 0) {
-    throw new Error('対象メンバーを1人以上選択してください');
-  }
-
-  const event = {
-    eventId: createId('event'),
-    circleId,
-    createdByUserId,
-    title: title.trim(),
-    amount: Number(amount),
-    notes: notes.trim(),
-    targetMemberIds: finalTargetMemberIds,
-    paymentStatus: {},
-    createdAt: new Date().toISOString(),
-  };
-
-  finalTargetMemberIds.forEach((memberId) => {
-    event.paymentStatus[memberId] = 'unpaid';
-  });
-
-  appState.events.push(event);
-  return event;
-}
-
-function getMyMembershipInCircle(userId, circleId) {
-  return getMembershipForUserInCircle(userId, circleId);
-}
-
-function getMyEventsForCircle({ userId, circleId }) {
-  const myMembership = getMyMembershipInCircle(userId, circleId);
-  if (!myMembership) {
-    return [];
-  }
-
-  return appState.events
-    .filter(
-      (event) =>
-        event.circleId === circleId &&
-        event.targetMemberIds.includes(myMembership.memberId)
-    )
-    .map((event) => ({
-      eventId: event.eventId,
-      title: event.title,
-      amount: event.amount,
-      notes: event.notes,
-      status: event.paymentStatus[myMembership.memberId] || 'unpaid',
-      createdAt: event.createdAt,
-    }));
-}
-
-function getEventStatusSummary(circleId, eventId) {
-  const event = appState.events.find(
-    (item) => item.circleId === circleId && item.eventId === eventId
-  );
-
-  if (!event) {
-    return [];
-  }
-
-  return getCircleMembers(circleId).map((member) => ({
-    memberId: member.memberId,
-    name: member.name,
-    role: member.role,
-    status: event.paymentStatus[member.memberId] || 'unpaid',
-  }));
-}
-
-function updatePaymentStatus({
-  actingUserId,
-  circleId,
-  eventId,
-  memberId,
-  status,
-}) {
-  const validStatuses = ['unpaid', 'pending', 'paid'];
-  if (!validStatuses.includes(status)) {
-    throw new Error('ステータスは unpaid, pending, paid のいずれかにしてください');
-  }
-
-  const event = appState.events.find(
-    (item) => item.circleId === circleId && item.eventId === eventId
-  );
-
-  if (!event) {
-    throw new Error('対象イベントが存在しません');
-  }
-
-  const targetMembership = appState.memberships.find(
-    (membership) =>
-      membership.circleId === circleId && membership.memberId === memberId
-  );
-
-  if (!targetMembership) {
-    throw new Error('対象メンバーがそのサークルに存在しません');
-  }
-
-  const actingMembership = getMembershipForUserInCircle(actingUserId, circleId);
-  if (!actingMembership) {
-    throw new Error('操作者はそのサークルに参加していません');
-  }
-
-  const isActingMember = actingMembership.memberId === memberId;
-  const isActingLeader = isLeader(actingUserId, circleId);
-
-  if (!isActingLeader && !isActingMember) {
-    throw new Error('このメンバーの支払い状況は更新できません');
-  }
-
-  if (isActingMember && !isActingLeader && status !== 'pending') {
-    throw new Error('一般メンバーは「承認待ち」状態のみ更新できます');
-  }
-
-  if (!event.targetMemberIds.includes(memberId)) {
-    throw new Error('そのイベントの対象メンバーではありません');
-  }
-
-  event.paymentStatus[memberId] = status;
-  return event.paymentStatus[memberId];
-}
-
-function findEventById(eventId) {
-  return appState.events.find((event) => event.eventId === eventId) || null;
-}
-
-function getCircleSummary(circleId) {
-  const circle = findCircleById(circleId);
-  if (!circle) {
-    throw new Error('サークルが存在しません');
-  }
-
-  const members = getCircleMembers(circleId);
-  const events = appState.events.filter((event) => event.circleId === circleId);
+function buildParticipantRecord(userId) {
+  const user = getUserById(userId);
+  if (!user) return null;
 
   return {
-    circle,
-    members,
-    events,
-    totalMembers: members.length,
-    totalEvents: events.length,
+    userId: user.userId,
+    name: user.name,
+    status: '未入金',
   };
 }
 
-const accountingSystem = {
-  appState,
-  createUser,
-  createCircle,
-  joinCircle,
-  grantLeaderRole,
-  createEvent,
-  getCircleMembers,
-  getMyEventsForCircle,
-  getEventStatusSummary,
-  updatePaymentStatus,
-  getCircleSummary,
-  findEventById,
-  generateInviteUrl,
-};
-
-if (typeof window !== 'undefined') {
-  window.accountingSystem = accountingSystem;
+function showModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.hidden = false;
+  modal.setAttribute('aria-hidden', 'false');
 }
 
-if (typeof module !== 'undefined') {
-  module.exports = accountingSystem;
+function closeModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function clearModalInputs(modalId) {
+  const form = document.getElementById(modalId)?.querySelector('form');
+  if (!form) return;
+  form.reset();
+}
+
+function renderEventList() {
+  const eventList = document.getElementById('event-list');
+  eventList.innerHTML = '';
+
+  appState.events.forEach((event) => {
+    const item = document.createElement('li');
+    if (event.id === appState.selectedEventId) {
+      item.classList.add('active');
+    }
+
+    item.dataset.eventId = event.id;
+    item.innerHTML = `
+      <span class="event-name">${event.name}</span>
+      <span class="event-amount">¥${Number(event.amount).toLocaleString()}</span>
+    `;
+
+    item.addEventListener('click', () => {
+      appState.selectedEventId = event.id;
+      renderAll();
+    });
+
+    eventList.appendChild(item);
+  });
+}
+
+function renderEventDetail() {
+  const event = getSelectedEvent();
+  const detailPanel = document.getElementById('event-detail-panel');
+  const participantPanel = document.getElementById('participant-panel');
+
+  if (!event) {
+    detailPanel.hidden = true;
+    participantPanel.hidden = true;
+    return;
+  }
+
+  detailPanel.hidden = false;
+  participantPanel.hidden = false;
+
+  document.getElementById('detail-event-name').textContent = event.name;
+  document.getElementById('detail-event-amount').textContent = `¥${Number(event.amount).toLocaleString()}`;
+  document.getElementById('detail-event-date').textContent = event.date;
+
+  const detailParticipants = document.getElementById('detail-participant-list');
+  detailParticipants.innerHTML = '';
+  event.participants.forEach((participant) => {
+    const li = document.createElement('li');
+    li.textContent = participant.name;
+    detailParticipants.appendChild(li);
+  });
+
+  const tbody = document.getElementById('participant-table-body');
+  tbody.innerHTML = '';
+
+  event.participants.forEach((participant) => {
+    const row = document.createElement('tr');
+    row.dataset.userId = participant.userId;
+    row.innerHTML = `
+      <td>${participant.name}</td>
+      <td>${STATUS_LABELS[participant.status] || participant.status}</td>
+    `;
+
+    row.addEventListener('click', () => {
+      appState.changingParticipantId = participant.userId;
+      const statusSelect = document.getElementById('status-select');
+      statusSelect.value = participant.status;
+      showModal('status-modal');
+    });
+
+    tbody.appendChild(row);
+  });
+}
+
+function renderParticipantCheckboxList() {
+  const list = document.getElementById('participant-checkbox-list');
+  list.innerHTML = '';
+
+  appState.users.forEach((user) => {
+    const item = document.createElement('li');
+    item.innerHTML = `
+      <label>
+        <input type="checkbox" value="${user.userId}" />
+        <span>${user.name}</span>
+      </label>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function renderLoginState() {
+  const loginPanel = document.querySelector('.login-panel');
+  const eventPanel = document.getElementById('event-panel');
+  const eventDetailPanel = document.getElementById('event-detail-panel');
+
+  if (appState.currentUser) {
+    loginPanel.hidden = true;
+    eventPanel.hidden = false;
+    if (appState.selectedEventId) {
+      eventDetailPanel.hidden = false;
+    }
+  } else {
+    loginPanel.hidden = false;
+    eventPanel.hidden = true;
+    eventDetailPanel.hidden = true;
+  }
+}
+
+function renderAll() {
+  renderLoginState();
+  renderEventList();
+  renderEventDetail();
+  renderParticipantCheckboxList();
+}
+
+function handleLoginSubmit(event) {
+  event.preventDefault();
+
+  const userIdInput = document.getElementById('user-id');
+  const userNameInput = document.getElementById('user-name');
+
+  const userId = userIdInput.value.trim();
+  const userName = userNameInput.value.trim();
+
+  if (!userId || !userName) {
+    alert('ユーザーIDと名前を入力してください');
+    return;
+  }
+
+  let user = appState.users.find((item) => item.userId === userId);
+
+  if (!user) {
+    user = { userId, name: userName };
+    appState.users.push(user);
+  } else {
+    user.name = userName;
+  }
+
+  appState.currentUser = user;
+  appState.selectedEventId = appState.events[0]?.id || null;
+  renderAll();
+
+  userIdInput.value = '';
+  userNameInput.value = '';
+}
+
+function handleAddEventSubmit(event) {
+  event.preventDefault();
+
+  const eventName = document.getElementById('event-name').value.trim();
+  const eventAmount = Number(document.getElementById('event-amount').value);
+  const eventDate = document.getElementById('event-date').value;
+
+  if (!eventName || !eventDate || Number.isNaN(eventAmount) || eventAmount <= 0) {
+    alert('イベント名・金額・日付を正しく入力してください');
+    return;
+  }
+
+  const checkedBoxes = document.querySelectorAll('#participant-checkbox-list input:checked');
+  const selectedUserIds = Array.from(checkedBoxes).map((checkbox) => checkbox.value);
+
+  const participantRecords =
+    selectedUserIds.length > 0
+      ? selectedUserIds
+          .map((userId) => buildParticipantRecord(userId))
+          .filter(Boolean)
+      : appState.users.map((user) => ({
+          userId: user.userId,
+          name: user.name,
+          status: '未入金',
+        }));
+
+  const newEvent = {
+    id: createId('event'),
+    name: eventName,
+    amount: eventAmount,
+    date: eventDate,
+    participants: participantRecords,
+  };
+
+  appState.events.push(newEvent);
+  appState.selectedEventId = newEvent.id;
+  closeModal('add-event-modal');
+  clearModalInputs('add-event-modal');
+  renderAll();
+}
+
+function handleEditEventSubmit(event) {
+  event.preventDefault();
+
+  const selectedEvent = getSelectedEvent();
+  if (!selectedEvent) return;
+
+  const name = document.getElementById('edit-event-name').value.trim();
+  const amount = Number(document.getElementById('edit-event-amount').value);
+  const date = document.getElementById('edit-event-date').value;
+
+  if (!name || !date || Number.isNaN(amount) || amount <= 0) {
+    alert('イベント名・金額・日付を正しく入力してください');
+    return;
+  }
+
+  selectedEvent.name = name;
+  selectedEvent.amount = amount;
+  selectedEvent.date = date;
+
+  closeModal('edit-event-modal');
+  renderAll();
+}
+
+function handleDeleteEvent() {
+  const selectedEvent = getSelectedEvent();
+  if (!selectedEvent) return;
+
+  appState.events = appState.events.filter((event) => event.id !== selectedEvent.id);
+  appState.selectedEventId = appState.events[0]?.id || null;
+  closeModal('delete-event-modal');
+  renderAll();
+}
+
+function handleStatusFormSubmit(event) {
+  event.preventDefault();
+
+  const selectedEvent = getSelectedEvent();
+  if (!selectedEvent || !appState.changingParticipantId) return;
+
+  const nextStatus = document.getElementById('status-select').value;
+  const participant = selectedEvent.participants.find(
+    (item) => item.userId === appState.changingParticipantId
+  );
+
+  if (!participant) return;
+
+  participant.status = nextStatus;
+  appState.changingParticipantId = null;
+
+  closeModal('status-modal');
+  renderAll();
+}
+
+function openAddEventModal() {
+  renderParticipantCheckboxList();
+  showModal('add-event-modal');
+}
+
+function openEditEventModal() {
+  const event = getSelectedEvent();
+  if (!event) return;
+
+  document.getElementById('edit-event-name').value = event.name;
+  document.getElementById('edit-event-amount').value = event.amount;
+  document.getElementById('edit-event-date').value = event.date;
+  showModal('edit-event-modal');
+}
+
+function openDeleteEventModal() {
+  const event = getSelectedEvent();
+  if (!event) return;
+  showModal('delete-event-modal');
+}
+
+function bindGlobalEvents() {
+  document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
+
+  document.querySelector('.add-event-button').addEventListener('click', openAddEventModal);
+  document.getElementById('add-event-form').addEventListener('submit', handleAddEventSubmit);
+
+  document.querySelector('.edit-event-button').addEventListener('click', openEditEventModal);
+  document.getElementById('edit-event-form').addEventListener('submit', handleEditEventSubmit);
+
+  document.querySelector('.delete-event-button').addEventListener('click', openDeleteEventModal);
+  document.querySelector('.confirm-delete-button').addEventListener('click', handleDeleteEvent);
+
+  document.getElementById('status-form').addEventListener('submit', handleStatusFormSubmit);
+
+  document.querySelectorAll('.modal-close, .modal-cancel').forEach((element) => {
+    element.addEventListener('click', () => {
+      const modal = element.closest('.modal');
+      if (modal) {
+        closeModal(modal.id);
+      }
+    });
+  });
+}
+
+function init() {
+  bindGlobalEvents();
+  renderAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+if (typeof window !== 'undefined') {
+  window.accountingApp = {
+    appState,
+    getSelectedEvent,
+    getEventById,
+    renderAll,
+  };
 }
