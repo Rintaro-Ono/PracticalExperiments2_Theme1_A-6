@@ -11,10 +11,13 @@ body {
 
 .container {
   min-height: 100vh;
+  width: min(1100px, 100%);
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  padding: 24px 16px;
+  padding: clamp(16px, 3vw, 32px);
+  margin: 0 auto;
 }
 
 .card {
@@ -27,7 +30,7 @@ body {
 
 h1 {
   margin: 0 0 24px;
-  font-size: 2rem;
+  font-size: clamp(1.5rem, 3vw, 2rem);
   letter-spacing: 0.08em;
 }
 
@@ -42,7 +45,7 @@ h1 {
 h2 {
   margin-top: 0;
   margin-bottom: 16px;
-  font-size: 1.2rem;
+  font-size: clamp(1.05rem, 2vw, 1.2rem);
 }
 
 form {
@@ -122,13 +125,14 @@ th {
 .page-header,
 .panel-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: stretch;
+  flex-direction: column;
   gap: 12px;
 }
 
 .page-header {
   align-items: flex-start;
+  flex-direction: column;
   flex-wrap: wrap;
 }
 
@@ -243,24 +247,40 @@ th {
 }
 
 .circle-tabs {
-  display: flex;
-  align-items: flex-end;
+  order: 2;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 6px;
   width: 100%;
-  overflow-x: auto;
+  overflow: visible;
   padding: 4px 0 0;
-  border-bottom: 1px solid #d8ccb4;
+  border-bottom: 0;
+}
+
+.lists-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
+  align-items: start;
+  gap: 14px;
+  width: 100%;
+  order: 3;
+}
+
+.lists-grid .event-panel,
+.lists-grid .participant-panel {
+  min-width: 0;
 }
 
 .circle-tab {
+  width: 100%;
   min-height: 40px;
-  margin-bottom: -1px;
-  border: 1px solid transparent;
+  margin-bottom: 0;
+  border: 1px solid #d8ccb4;
   border-bottom: 3px solid transparent;
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
   background: transparent;
   color: #5d716b;
-  white-space: nowrap;
+  text-align: left;
 }
 
 .circle-tab:hover,
@@ -279,17 +299,17 @@ th {
 .circle-controls {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
 
 .circle-controls label {
-  display: inline;
+  width: 100%;
 }
 
 .circle-controls select {
-  width: auto;
-  min-width: 140px;
+  width: 100%;
 }
 
 .login-panel,
@@ -299,8 +319,8 @@ th {
   background: #f7f4ef;
   border: 1px solid #e3dac6;
   border-radius: 12px;
-  padding: 18px;
-  margin-bottom: 20px;
+  padding: clamp(14px, 2vw, 18px);
+  margin-bottom: clamp(14px, 2vw, 20px);
 }
 
 .user-input {
@@ -324,36 +344,44 @@ th {
 }
 
 #event-list li {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
   border: 1px solid #e3dac6;
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .event-name {
-  flex: 1 1 180px;
+  width: 100%;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e8dfcf;
   font-weight: 700;
 }
 
 .event-amount,
 .event-date {
+  width: 100%;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e8dfcf;
   color: #5d5d5d;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .payment-button,
 .status-action {
+  width: 100%;
   min-height: 36px;
   padding: 6px 10px;
   font-size: 0.9rem;
 }
 
 .payment-button {
+  width: calc(100% - 28px);
+  margin: 10px 14px 14px;
   background: #4d7a6a;
 }
 
@@ -380,12 +408,24 @@ th {
 
 .event-detail-list {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
+#detail-participant-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#detail-participant-list li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fff;
+}
+
 .event-detail-list div {
-  padding: 12px;
+  padding: clamp(10px, 1.5vw, 12px);
   border-radius: 8px;
   background: #fff;
 }
@@ -403,9 +443,14 @@ th {
 .action-buttons,
 .form-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
   margin-top: 16px;
+}
+
+.action-buttons button,
+.form-actions button {
+  width: 100%;
 }
 
 .modal {
@@ -450,12 +495,8 @@ fieldset {
 
 @media (max-width: 600px) {
   .container {
+    width: 100%;
     padding: 12px 10px 24px;
-  }
-
-  .card {
-    padding: 16px 12px;
-    border-radius: 14px;
   }
 
   h1 {
@@ -467,21 +508,22 @@ fieldset {
     font-size: 1.1rem;
   }
 
-  .page-header,
-  .panel-header,
-  .circle-controls,
-  .action-buttons,
-  .form-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   .page-header {
     align-items: stretch;
   }
 
   .header-main {
-    align-items: stretch;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .header-main h1 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .header-main .header-add-circle-button {
+    width: 100%;
   }
 
   .header-main h1 {
@@ -500,15 +542,35 @@ fieldset {
     margin-bottom: 14px;
   }
 
-  .user-input,
+  .user-input {
+    grid-template-columns: 1fr;
+  }
+
+  .lists-grid,
   .event-detail-list {
     grid-template-columns: 1fr;
   }
 
-  .panel-header button,
-  .action-buttons button,
-  .form-actions button {
-    width: 100%;
+  .lists-grid {
+    gap: 10px;
+  }
+
+  .event-detail-list {
+    gap: 8px;
+  }
+
+  .event-name {
+    padding: 10px 12px;
+  }
+
+  .event-amount,
+  .event-date {
+    padding: 8px 12px;
+  }
+
+  .payment-button {
+    width: calc(100% - 24px);
+    margin: 8px 12px 12px;
   }
 
   #participant-table {
@@ -521,6 +583,16 @@ fieldset {
     margin: 4px 6px 4px 0;
   }
 
+  .status-action {
+    width: 100%;
+    margin: 6px 0 0;
+  }
+
+  #participant-table th,
+  #participant-table td {
+    padding: 8px 6px;
+  }
+
   .modal {
     place-items: start center;
     padding: 10px;
@@ -529,5 +601,18 @@ fieldset {
   .modal-content {
     margin: auto 0;
     padding: 18px 14px;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 900px) {
+  .lists-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(200px, 0.85fr);
+  }
+
+  .circle-tab,
+  button,
+  input,
+  select {
+    min-height: 40px;
   }
 }
