@@ -9,8 +9,34 @@
   <body>
     <main class="container">
       <header class="page-header">
-        <h1>聖徳太子会計</h1>
+        <div class="header-main">
+          <button type="button" id="menu-toggle" class="menu-toggle" aria-label="メニューを開く" aria-expanded="false" hidden>
+            <span></span><span></span><span></span>
+          </button>
+          <h1>聖徳太子会計</h1>
+          <button type="button" class="header-add-circle-button" hidden>サークル追加</button>
+        </div>
+        <nav id="circle-tabs" class="circle-tabs" aria-label="サークルを切り替え" hidden>
+          <!-- JSでサークルタブを描画 -->
+        </nav>
       </header>
+
+      <aside id="app-menu" class="app-menu" hidden aria-label="メニュー">
+        <div class="menu-header">
+          <h2>メニュー</h2>
+          <button type="button" id="menu-close" class="menu-close" aria-label="メニューを閉じる">×</button>
+        </div>
+        <button type="button" id="profile-settings-button" class="menu-item">プロフィール設定</button>
+        <details class="menu-group">
+          <summary>サークル管理</summary>
+          <div class="menu-subitems">
+            <button type="button" id="leave-circle-button" class="menu-item">サークル脱退</button>
+            <button type="button" id="menu-add-circle-button" class="menu-item">サークル作成</button>
+            <button type="button" id="join-circle-button" class="menu-item">サークルに参加</button>
+          </div>
+        </details>
+        <button type="button" id="logout-button" class="menu-item menu-logout">ログアウト</button>
+      </aside>
 
       <!-- ログイン画面 -->
       <section class="login-panel" aria-labelledby="login-title">
@@ -64,7 +90,7 @@
           </div>
         </dl>
 
-        <h3>参加者</h3>
+        <h3 id="detail-participant-title">参加者</h3>
         <ul id="detail-participant-list">
           <!-- JS で参加者を描画 -->
         </ul>

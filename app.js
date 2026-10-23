@@ -1,114 +1,614 @@
 const appState = {
   currentUser: null,
-  users: [
-    { userId: 's001', name: '田中 太郎' },
-    { userId: 's002', name: '山田 花子' },
-    { userId: 's003', name: '佐藤 次郎' },
-  ],
-  events: [
-    {
-      id: 'event_1',
-      name: '新歓費',
-      amount: 500,
-      date: '2026-11-10',
-      participants: [
-        { userId: 's001', name: '田中 太郎', status: '承認済み' },
-        { userId: 's002', name: '山田 花子', status: '未入金' },
-        { userId: 's003', name: '佐藤 次郎', status: '承認待ち' },
-      ],
-    },
-    {
-      id: 'event_2',
-      name: '合宿代',
-      amount: 1200,
-      date: '2026-11-20',
-      participants: [
-        { userId: 's001', name: '田中 太郎', status: '未入金' },
-        { userId: 's002', name: '山田 花子', status: '承認済み' },
-        { userId: 's003', name: '佐藤 次郎', status: '未入金' },
-      ],
-    },
-  ],
+  selectedCircleId: null,
+  currentCircleId: null,
   selectedEventId: null,
   editingEventId: null,
   changingParticipantId: null,
+  users: [],
+  circles: [],
+  memberships: [],
+  events: [],
 };
 
 const STATUS_LABELS = {
-  未入金: '未入金',
-  承認待ち: '承認待ち',
-  承認済み: '承認済み',
+  unpaid: '未入金',
+  pending: '承認待ち',
+  approved: '承認済み',
+};
+
+const STATUS_VALUES = {
+  未入金: 'unpaid',
+  承認待ち: 'pending',
+  承認済み: 'approved',
 };
 
 function createId(prefix) {
-  return `${prefix}_${Math.random().toString(16).slice(2, 10)}_${Date.now()}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
-function getUserById(userId) {
+function createRoomId() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let roomId = '';
+
+  do {
+    roomId = Array.from({ length: 6 }, () =>
+      characters[Math.floor(Math.random() * characters.length)]
+    ).join('');
+  } while (findCircleById(roomId));
+
+  return roomId;
+}
+
+function normalizeString(value) {
+  return String(value ?? '').trim();
+}
+
+function findUserById(userId) {
   return appState.users.find((user) => user.userId === userId) || null;
 }
 
-function getEventById(eventId) {
-  return appState.events.find((event) => event.id === eventId) || null;
+function findCircleById(circleId) {
+  return appState.circles.find((circle) => circle.circleId === circleId) || null;
 }
 
-function getSelectedEvent() {
-  return getEventById(appState.selectedEventId);
+function findEventById(eventId) {
+  return appState.events.find((event) => event.eventId === eventId) || null;
 }
 
-function buildParticipantRecord(userId) {
-  const user = getUserById(userId);
-  if (!user) return null;
+function getMembershipForUserInCircle(userId, circleId) {
+  return (
+    appState.memberships.find(
+      (membership) =>
+        membership.userId === userId && membership.circleId === circleId
+    ) || null
+  );
+}
 
+function getCircleMembers(circleId) {
+  return appState.memberships
+    .filter((membership) => membership.circleId === circleId)
+    .map((membership) => {
+      const user = findUserById(membership.userId);
+      return {
+        ...membership,
+        name: user ? user.name : 'Unknown',
+      };
+    });
+}
+
+function getCircleLeaderIds(circleId) {
+  return getCircleMembers(circleId)
+    .filter((membership) => membership.role === 'leader')
+    .map((membership) => membership.userId);
+}
+
+function isLeader(userId, circleId) {
+  return getCircleLeaderIds(circleId).includes(userId);
+}
+
+function registerUser({ name, email = '', snsId = '' } = {}) {
+  const safeName = normalizeString(name);
+  const safeEmail = normalizeString(email);
+  const safeSnsId = normalizeString(snsId);
+
+  if (!safeName) {
+    throw new Error('ユーザー名は必須です');
+  }
+  if (safeEmail && findUserByEmail(safeEmail)) {
+    throw new Error('このメールアドレスはすでに登録されています');
+  }
+  if (safeSnsId && findUserBySnsId(safeSnsId)) {
+    throw new Error('このSNS IDはすでに登録されています');
+  }
+
+  const user = {
+    userId: createId('user'),
+    name: safeName,
+    email: safeEmail,
+    snsId: safeSnsId,
+    createdAt: new Date().toISOString(),
+  };
+  appState.users.push(user);
+  return user;
+}
+
+function createUser(options) {
+  return registerUser(options);
+}
+
+function findUserByEmail(email) {
+  const normalizedEmail = normalizeString(email).toLowerCase();
+  return (
+    appState.users.find(
+      (user) => normalizeString(user.email).toLowerCase() === normalizedEmail
+    ) || null
+  );
+}
+
+function findUserBySnsId(snsId) {
+  const normalizedSnsId = normalizeString(snsId).toLowerCase();
+  return (
+    appState.users.find(
+      (user) => normalizeString(user.snsId).toLowerCase() === normalizedSnsId
+    ) || null
+  );
+}
+
+function loginUser({ email = '', snsId = '' } = {}) {
+  const user = findUserByEmail(email) || findUserBySnsId(snsId);
+  if (!user) {
+    throw new Error('該当するユーザーが見つかりません');
+  }
+  return user;
+}
+
+function getUserByLoginInfo(options) {
+  return loginUser(options);
+}
+
+function generateInviteUrl(circleId, baseUrl = 'https://example.com/circle') {
+  return `${baseUrl.replace(/\/$/, '')}/${circleId}`;
+}
+
+function createCircle({
+  name,
+  createdByUserId,
+  baseUrl = 'https://example.com/circle',
+} = {}) {
+  const safeName = normalizeString(name);
+  if (!safeName) {
+    throw new Error('サークル名は必須です');
+  }
+  if (!findUserById(createdByUserId)) {
+    throw new Error('作成者が見つかりません');
+  }
+
+  const circle = {
+    circleId: createRoomId(),
+    name: safeName,
+    createdByUserId,
+    inviteUrl: '',
+    createdAt: new Date().toISOString(),
+  };
+  circle.inviteUrl = generateInviteUrl(circle.circleId, baseUrl);
+  appState.circles.push(circle);
+  appState.memberships.push({
+    membershipId: createId('membership'),
+    userId: createdByUserId,
+    circleId: circle.circleId,
+    memberId: createId('member'),
+    role: 'leader',
+    joinedAt: new Date().toISOString(),
+  });
+  return circle;
+}
+
+function joinCircle({ userId, circleId } = {}) {
+  if (!findUserById(userId)) {
+    throw new Error('ユーザーが見つかりません');
+  }
+  if (!findCircleById(circleId)) {
+    throw new Error('そのサークルは存在しません');
+  }
+
+  const existingMembership = getMembershipForUserInCircle(userId, circleId);
+  if (existingMembership) {
+    return existingMembership;
+  }
+
+  const membership = {
+    membershipId: createId('membership'),
+    userId,
+    circleId,
+    memberId: createId('member'),
+    role: 'member',
+    joinedAt: new Date().toISOString(),
+  };
+  appState.memberships.push(membership);
+  return membership;
+}
+
+function grantLeaderRole({ actingUserId, circleId, targetUserId } = {}) {
+  if (!getMembershipForUserInCircle(actingUserId, circleId)) {
+    throw new Error('実行者はそのサークルのメンバーではありません');
+  }
+  if (!isLeader(actingUserId, circleId)) {
+    throw new Error('幹部権限がないため実行できません');
+  }
+
+  const targetMembership = getMembershipForUserInCircle(targetUserId, circleId);
+  if (!targetMembership) {
+    throw new Error('対象ユーザーはそのサークルに参加していません');
+  }
+  targetMembership.role = 'leader';
+  return targetMembership;
+}
+
+function leaveCircle({ userId, circleId } = {}) {
+  const membership = getMembershipForUserInCircle(userId, circleId);
+  if (!membership) {
+    throw new Error('そのサークルのメンバーではありません');
+  }
+
+  if (membership.role === 'leader' && getCircleLeaderIds(circleId).length === 1) {
+    throw new Error('幹部が一人だけのため、サークルを抜けることはできません');
+  }
+
+  appState.memberships = appState.memberships.filter(
+    (item) => item.membershipId !== membership.membershipId
+  );
+  return membership;
+}
+
+function normalizeDateValue(dateValue) {
+  if (!dateValue) return null;
+  const value = new Date(dateValue);
+  if (Number.isNaN(value.getTime())) {
+    throw new Error('期限は有効な日付を指定してください');
+  }
+  return value.toISOString();
+}
+
+function getDeadlineStatus(deadlineIso) {
+  if (!deadlineIso) {
+    return { deadline: null, isExpired: false, statusText: '期限なし' };
+  }
+  const deadline = new Date(deadlineIso);
+  if (Number.isNaN(deadline.getTime())) {
+    throw new Error('期限は有効な日付を指定してください');
+  }
+  const isExpired = new Date() > deadline;
   return {
-    userId: user.userId,
-    name: user.name,
-    status: '未入金',
+    deadline: deadline.toISOString(),
+    isExpired,
+    statusText: isExpired ? '期限切れ' : '期限内',
   };
 }
 
-function showModal(modalId) {
-  const modal = document.getElementById(modalId);
+function createEvent({
+  circleId,
+  createdByUserId,
+  title,
+  amount,
+  notes = '',
+  targetMemberIds = [],
+  deadline = null,
+} = {}) {
+  if (!findCircleById(circleId)) {
+    throw new Error('そのサークルは存在しません');
+  }
+  if (!getMembershipForUserInCircle(createdByUserId, circleId)) {
+    throw new Error('作成者はそのサークルのメンバーではありません');
+  }
+  if (!isLeader(createdByUserId, circleId)) {
+    throw new Error('幹部権限がないためイベントを追加できません');
+  }
+  const safeTitle = normalizeString(title);
+  const numericAmount = Number(amount);
+  if (!safeTitle) throw new Error('イベント名は必須です');
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    throw new Error('金額は0より大きい数値を設定してください');
+  }
+
+  const members = getCircleMembers(circleId);
+  const memberIds = members.map((member) => member.memberId);
+  const selectedIds =
+    targetMemberIds.length > 0
+      ? targetMemberIds.filter((memberId) => memberIds.includes(memberId))
+      : memberIds;
+  const event = {
+    eventId: createId('event'),
+    circleId,
+    createdByUserId,
+    title: safeTitle,
+    amount: numericAmount,
+    notes: normalizeString(notes),
+    targetMemberIds: selectedIds,
+    deadline: normalizeDateValue(deadline),
+    paymentStatus: {},
+    createdAt: new Date().toISOString(),
+  };
+  appState.events.push(event);
+  return event;
+}
+
+function getMyEventsForCircle(circleId, userId) {
+  const membership = getMembershipForUserInCircle(userId, circleId);
+  if (!membership) return [];
+  return appState.events
+    .filter(
+      (event) =>
+        event.circleId === circleId &&
+        event.targetMemberIds.includes(membership.memberId)
+    )
+    .map((event) => {
+      const deadline = getDeadlineStatus(event.deadline);
+      return {
+        eventId: event.eventId,
+        title: event.title,
+        amount: event.amount,
+        notes: event.notes,
+        deadline: deadline.deadline,
+        deadlineStatus: deadline.statusText,
+        isExpired: deadline.isExpired,
+        status: event.paymentStatus[membership.memberId] || 'unpaid',
+        createdAt: event.createdAt,
+      };
+    });
+}
+
+function getEventStatusSummary(circleId, eventId) {
+  const event = findEventById(eventId);
+  if (!event || event.circleId !== circleId) return [];
+  const deadline = getDeadlineStatus(event.deadline);
+  return getCircleMembers(circleId)
+    .filter((member) => event.targetMemberIds.includes(member.memberId))
+    .map((member) => ({
+      memberId: member.memberId,
+      name: member.name,
+      role: member.role,
+      status: event.paymentStatus[member.memberId] || 'unpaid',
+      deadline: deadline.deadline,
+      deadlineStatus: deadline.statusText,
+      isExpired: deadline.isExpired,
+    }));
+}
+
+function getEventDeadlineInfo(circleId, eventId) {
+  const event = findEventById(eventId);
+  return event && event.circleId === circleId ? getDeadlineStatus(event.deadline) : null;
+}
+
+function updatePaymentStatus({
+  actingUserId,
+  circleId,
+  eventId,
+  memberId,
+  targetMemberId,
+  status,
+} = {}) {
+  const event = findEventById(eventId);
+  const selectedMemberId = memberId || targetMemberId;
+  if (!event || event.circleId !== circleId) {
+    throw new Error('イベントが見つかりません');
+  }
+  if (!isLeader(actingUserId, circleId)) {
+    throw new Error('幹部権限がないため実行できません');
+  }
+  if (!event.targetMemberIds.includes(selectedMemberId)) {
+    throw new Error('対象ユーザーはこのイベントの参加者ではありません');
+  }
+  const normalizedStatus = STATUS_VALUES[status] || status;
+  if (!Object.prototype.hasOwnProperty.call(STATUS_LABELS, normalizedStatus)) {
+    throw new Error('無効な入金状態です');
+  }
+  const currentStatus = event.paymentStatus[selectedMemberId] || 'unpaid';
+  if (normalizedStatus === 'pending') {
+    throw new Error('メンバーの入金申請後に承認または却下してください');
+  }
+  if (normalizedStatus === 'approved' && currentStatus !== 'pending') {
+    throw new Error('メンバーが入金確認を申請するまで承認できません');
+  }
+  if (normalizedStatus === 'unpaid' && currentStatus !== 'pending' && currentStatus !== 'approved') {
+    throw new Error('承認待ちまたは承認済みの状態だけ却下できます');
+  }
+  event.paymentStatus[selectedMemberId] = normalizedStatus;
+  return event;
+}
+
+function markPaymentPending({ userId, circleId, eventId } = {}) {
+  const event = findEventById(eventId);
+  const membership = getMembershipForUserInCircle(userId, circleId);
+  if (!event || event.circleId !== circleId) {
+    throw new Error('イベントが見つかりません');
+  }
+  if (!membership || !event.targetMemberIds.includes(membership.memberId)) {
+    throw new Error('このイベントの参加者ではありません');
+  }
+  const status = event.paymentStatus[membership.memberId] || 'unpaid';
+  if (status !== 'unpaid') {
+    throw new Error('現在の状態では入金確認を申請できません');
+  }
+  event.paymentStatus[membership.memberId] = 'pending';
+  return event;
+}
+
+function revertPaymentPending({ userId, circleId, eventId } = {}) {
+  const event = findEventById(eventId);
+  const membership = getMembershipForUserInCircle(userId, circleId);
+  if (!event || event.circleId !== circleId) {
+    throw new Error('イベントが見つかりません');
+  }
+  if (!membership || !event.targetMemberIds.includes(membership.memberId)) {
+    throw new Error('このイベントの参加者ではありません');
+  }
+  if (event.paymentStatus[membership.memberId] !== 'pending') {
+    throw new Error('確認中のイベントだけ元に戻せます');
+  }
+  event.paymentStatus[membership.memberId] = 'unpaid';
+  return event;
+}
+
+function getCircleSummary(circleId) {
+  const circle = findCircleById(circleId);
+  if (!circle) return null;
+  return {
+    ...circle,
+    members: getCircleMembers(circleId),
+    events: appState.events.filter((event) => event.circleId === circleId),
+  };
+}
+
+function getCurrentCircleEvents() {
+  return appState.events.filter((event) => event.circleId === appState.currentCircleId);
+}
+
+function isCurrentUserLeader() {
+  return Boolean(
+    appState.currentUser &&
+      appState.currentCircleId &&
+      isLeader(appState.currentUser.userId, appState.currentCircleId)
+  );
+}
+
+function getVisibleEvents() {
+  if (isCurrentUserLeader()) {
+    return getCurrentCircleEvents();
+  }
+  return appState.currentUser
+    ? getMyEventsForCircle(appState.currentCircleId, appState.currentUser.userId)
+        .map((item) => findEventById(item.eventId))
+        .filter(Boolean)
+    : [];
+}
+
+function seedTestData() {
+  if (appState.circles.length > 0) return;
+
+  const testUsers = [
+    { userId: 's001', name: '田中 太郎' },
+    { userId: 's002', name: '山田 花子' },
+    { userId: 's003', name: '佐藤 次郎' },
+  ];
+
+  testUsers.forEach((user) => {
+    appState.users.push({
+      ...user,
+      email: '',
+      snsId: '',
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  const testCircles = [
+    { circleId: 'SCCR01', name: 'サッカーサークル' },
+    { circleId: 'ICCL01', name: 'インカレサークル' },
+  ];
+
+  testCircles.forEach((circle) => {
+    appState.circles.push({
+      ...circle,
+      createdByUserId: 's001',
+      inviteUrl: generateInviteUrl(circle.circleId),
+      createdAt: new Date().toISOString(),
+    });
+
+    testUsers.forEach((user, index) => {
+      appState.memberships.push({
+        membershipId: `${circle.circleId}_membership_${user.userId}`,
+        userId: user.userId,
+        circleId: circle.circleId,
+        memberId: `${circle.circleId}_member_${user.userId}`,
+        role: index === 0 ? 'leader' : 'member',
+        joinedAt: new Date().toISOString(),
+      });
+    });
+  });
+}
+
+function getSelectedEvent() {
+  return findEventById(appState.selectedEventId);
+}
+
+function showModal(id) {
+  const modal = document.getElementById(id);
   if (!modal) return;
   modal.hidden = false;
   modal.setAttribute('aria-hidden', 'false');
 }
 
-function closeModal(modalId) {
-  const modal = document.getElementById(modalId);
+function closeModal(id) {
+  const modal = document.getElementById(id);
   if (!modal) return;
   modal.hidden = true;
   modal.setAttribute('aria-hidden', 'true');
 }
 
-function clearModalInputs(modalId) {
-  const form = document.getElementById(modalId)?.querySelector('form');
-  if (!form) return;
-  form.reset();
+function renderCircleTabs() {
+  const tabs = document.getElementById('circle-tabs');
+  if (!tabs) return;
+  tabs.innerHTML = '';
+
+  const circles = appState.currentUser
+    ? appState.memberships
+        .filter((membership) => membership.userId === appState.currentUser.userId)
+        .map((membership) => findCircleById(membership.circleId))
+        .filter(Boolean)
+    : [];
+
+  tabs.hidden = !appState.currentUser;
+  circles.forEach((circle) => {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'circle-tab';
+    tab.textContent = circle.name;
+    tab.setAttribute('aria-selected', String(circle.circleId === appState.selectedCircleId));
+    tab.classList.toggle('active', circle.circleId === appState.selectedCircleId);
+    tab.addEventListener('click', () => {
+      appState.selectedCircleId = circle.circleId;
+      if (appState.currentCircleId) {
+        appState.currentCircleId = circle.circleId;
+        const firstEvent = getCurrentCircleEvents()[0];
+        appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
+      }
+      renderAll();
+    });
+    tabs.appendChild(tab);
+  });
 }
 
 function renderEventList() {
-  const eventList = document.getElementById('event-list');
-  eventList.innerHTML = '';
-
-  appState.events.forEach((event) => {
+  const list = document.getElementById('event-list');
+  if (!list) return;
+  list.innerHTML = '';
+  getVisibleEvents().forEach((event) => {
     const item = document.createElement('li');
-    if (event.id === appState.selectedEventId) {
-      item.classList.add('active');
+    item.dataset.eventId = event.eventId;
+    item.classList.toggle('active', event.eventId === appState.selectedEventId);
+    const title = document.createElement('span');
+    title.className = 'event-name';
+    title.textContent = event.title;
+    const amount = document.createElement('span');
+    amount.className = 'event-amount';
+    amount.textContent = `¥${event.amount.toLocaleString()}`;
+    const date = document.createElement('span');
+    date.className = 'event-date';
+    date.textContent = event.deadline
+      ? new Date(event.deadline).toLocaleDateString('ja-JP')
+      : '日付なし';
+    item.append(title, amount, date);
+
+    if (!isCurrentUserLeader() && appState.currentUser) {
+      const membership = getMembershipForUserInCircle(
+        appState.currentUser.userId,
+        event.circleId
+      );
+      const memberId = membership?.memberId;
+      const status = memberId ? event.paymentStatus[memberId] || 'unpaid' : 'unpaid';
+      const paymentButton = document.createElement('button');
+      paymentButton.type = 'button';
+      paymentButton.className = 'payment-button';
+      paymentButton.textContent =
+        status === 'pending'
+          ? '確認中'
+          : status === 'approved'
+            ? '承認済み'
+            : '入金しました';
+      paymentButton.disabled = status === 'approved';
+      paymentButton.classList.toggle('is-pending', status === 'pending');
+      paymentButton.addEventListener('click', (clickEvent) => {
+        clickEvent.stopPropagation();
+        handleMemberPayment(event, status);
+      });
+      item.appendChild(paymentButton);
     }
 
-    item.dataset.eventId = event.id;
-    item.innerHTML = `
-      <span class="event-name">${event.name}</span>
-      <span class="event-amount">¥${Number(event.amount).toLocaleString()}</span>
-    `;
-
     item.addEventListener('click', () => {
-      appState.selectedEventId = event.id;
+      appState.selectedEventId = event.eventId;
       renderAll();
     });
-
-    eventList.appendChild(item);
+    list.appendChild(item);
   });
 }
 
@@ -116,82 +616,91 @@ function renderEventDetail() {
   const event = getSelectedEvent();
   const detailPanel = document.getElementById('event-detail-panel');
   const participantPanel = document.getElementById('participant-panel');
+  const canManageCircle =
+    Boolean(appState.currentUser) &&
+    Boolean(appState.currentCircleId) &&
+    isLeader(appState.currentUser.userId, appState.currentCircleId);
+  if (!detailPanel || !participantPanel) return;
+  detailPanel.hidden = !event;
+  participantPanel.hidden = !event || !canManageCircle;
+  document.querySelector('.action-buttons').hidden = !canManageCircle;
+  document.getElementById('detail-participant-title').hidden = !canManageCircle;
+  document.getElementById('detail-participant-list').hidden = !canManageCircle;
+  if (!event) return;
 
-  if (!event) {
-    detailPanel.hidden = true;
-    participantPanel.hidden = true;
-    return;
-  }
+  document.getElementById('detail-event-name').textContent = event.title;
+  document.getElementById('detail-event-amount').textContent = `¥${event.amount.toLocaleString()}`;
+  document.getElementById('detail-event-date').textContent =
+    event.deadline ? new Date(event.deadline).toLocaleDateString('ja-JP') : '期限なし';
 
-  detailPanel.hidden = false;
-  participantPanel.hidden = false;
+  const detailList = document.getElementById('detail-participant-list');
+  const tableBody = document.getElementById('participant-table-body');
+  detailList.innerHTML = '';
+  tableBody.innerHTML = '';
+  getEventStatusSummary(event.circleId, event.eventId).forEach((participant) => {
+    const detailItem = document.createElement('li');
+    detailItem.textContent = participant.name;
+    detailList.appendChild(detailItem);
 
-  document.getElementById('detail-event-name').textContent = event.name;
-  document.getElementById('detail-event-amount').textContent = `¥${Number(event.amount).toLocaleString()}`;
-  document.getElementById('detail-event-date').textContent = event.date;
-
-  const detailParticipants = document.getElementById('detail-participant-list');
-  detailParticipants.innerHTML = '';
-  event.participants.forEach((participant) => {
-    const li = document.createElement('li');
-    li.textContent = participant.name;
-    detailParticipants.appendChild(li);
-  });
-
-  const tbody = document.getElementById('participant-table-body');
-  tbody.innerHTML = '';
-
-  event.participants.forEach((participant) => {
     const row = document.createElement('tr');
-    row.dataset.userId = participant.userId;
-    row.innerHTML = `
-      <td>${participant.name}</td>
-      <td>${STATUS_LABELS[participant.status] || participant.status}</td>
-    `;
-
-    row.addEventListener('click', () => {
-      appState.changingParticipantId = participant.userId;
-      const statusSelect = document.getElementById('status-select');
-      statusSelect.value = participant.status;
-      showModal('status-modal');
-    });
-
-    tbody.appendChild(row);
+    row.dataset.memberId = participant.memberId;
+    const nameCell = document.createElement('td');
+    nameCell.textContent = participant.name;
+    const statusCell = document.createElement('td');
+    statusCell.textContent = STATUS_LABELS[participant.status];
+    row.append(nameCell, statusCell);
+    if (participant.status === 'pending') {
+      const approveButton = document.createElement('button');
+      approveButton.type = 'button';
+      approveButton.className = 'status-action approve-button';
+      approveButton.textContent = '承認';
+      approveButton.addEventListener('click', () =>
+        handleLeaderPaymentDecision(event, participant.memberId, 'approved')
+      );
+      const rejectButton = document.createElement('button');
+      rejectButton.type = 'button';
+      rejectButton.className = 'status-action reject-button';
+      rejectButton.textContent = '却下';
+      rejectButton.addEventListener('click', () =>
+        handleLeaderPaymentDecision(event, participant.memberId, 'unpaid')
+      );
+      statusCell.append(approveButton, rejectButton);
+    }
+    tableBody.appendChild(row);
   });
 }
 
 function renderParticipantCheckboxList() {
   const list = document.getElementById('participant-checkbox-list');
+  if (!list) return;
   list.innerHTML = '';
-
-  appState.users.forEach((user) => {
+  getCircleMembers(appState.currentCircleId).forEach((member) => {
     const item = document.createElement('li');
-    item.innerHTML = `
-      <label>
-        <input type="checkbox" value="${user.userId}" />
-        <span>${user.name}</span>
-      </label>
-    `;
+    item.innerHTML = `<label><input type="checkbox" value="${member.memberId}" checked /> ${member.name}</label>`;
     list.appendChild(item);
   });
 }
 
 function renderLoginState() {
-  const loginPanel = document.querySelector('.login-panel');
-  const eventPanel = document.getElementById('event-panel');
-  const eventDetailPanel = document.getElementById('event-detail-panel');
-
-  if (appState.currentUser) {
-    loginPanel.hidden = true;
-    eventPanel.hidden = false;
-    if (appState.selectedEventId) {
-      eventDetailPanel.hidden = false;
-    }
-  } else {
-    loginPanel.hidden = false;
-    eventPanel.hidden = true;
-    eventDetailPanel.hidden = true;
+  const loggedIn = Boolean(appState.currentUser);
+  const hasJoinedCircle = Boolean(appState.currentCircleId);
+  const canManageCircle =
+    loggedIn &&
+    hasJoinedCircle &&
+    isLeader(appState.currentUser.userId, appState.currentCircleId);
+  document.querySelector('.login-panel').hidden = loggedIn;
+  document.getElementById('menu-toggle').hidden = !loggedIn;
+  if (!loggedIn) {
+    closeMenu();
   }
+  document.getElementById('event-panel').hidden = !hasJoinedCircle;
+  document.querySelector('.add-event-button').hidden = !canManageCircle;
+  document.querySelector('.header-add-circle-button').hidden = !loggedIn;
+  document.getElementById('event-detail-panel').hidden =
+    !hasJoinedCircle || !getSelectedEvent();
+  document.getElementById('participant-panel').hidden =
+    !hasJoinedCircle || !getSelectedEvent() || !canManageCircle;
+  renderCircleTabs();
 }
 
 function renderAll() {
@@ -203,186 +712,312 @@ function renderAll() {
 
 function handleLoginSubmit(event) {
   event.preventDefault();
-
-  const userIdInput = document.getElementById('user-id');
-  const userNameInput = document.getElementById('user-name');
-
-  const userId = userIdInput.value.trim();
-  const userName = userNameInput.value.trim();
-
-  if (!userId || !userName) {
+  const userId = normalizeString(document.getElementById('user-id').value);
+  const name = normalizeString(document.getElementById('user-name').value);
+  if (!userId || !name) {
     alert('ユーザーIDと名前を入力してください');
     return;
   }
-
-  let user = appState.users.find((item) => item.userId === userId);
-
+  let user = findUserById(userId);
   if (!user) {
-    user = { userId, name: userName };
+    user = { userId, name, email: '', snsId: '', createdAt: new Date().toISOString() };
     appState.users.push(user);
   } else {
-    user.name = userName;
+    user.name = name;
+  }
+  appState.currentUser = user;
+  const membership = appState.memberships.find((item) => item.userId === user.userId);
+  appState.selectedCircleId = membership ? membership.circleId : null;
+  appState.currentCircleId = appState.selectedCircleId;
+  const firstEvent = getCurrentCircleEvents()[0];
+  appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
+  renderAll();
+}
+
+function handleCreateCircle() {
+  const name = normalizeString(prompt('サークル名を入力してください'));
+  if (!name || !appState.currentUser) return;
+  const circle = createCircle({ name, createdByUserId: appState.currentUser.userId });
+  appState.selectedCircleId = circle.circleId;
+  appState.currentCircleId = circle.circleId;
+  appState.selectedEventId = null;
+  alert(`サークルを作成しました。\n部屋ID: ${circle.circleId}`);
+  closeMenu();
+  renderAll();
+}
+
+function handleJoinCircle() {
+  if (!appState.currentUser) return;
+
+  const roomId = normalizeString(prompt('参加するサークルの部屋ID（6桁）を入力してください'));
+  if (!roomId) return;
+  if (!/^[A-Za-z0-9]{6}$/.test(roomId)) {
+    alert('部屋IDは6桁の英数字で入力してください');
+    return;
   }
 
-  appState.currentUser = user;
-  appState.selectedEventId = appState.events[0]?.id || null;
-  renderAll();
+  try {
+    joinCircle({
+      userId: appState.currentUser.userId,
+      circleId: roomId,
+    });
+    appState.selectedCircleId = roomId;
+    appState.currentCircleId = roomId;
+    appState.selectedEventId = getCurrentCircleEvents()[0]?.eventId || null;
+    alert(`${findCircleById(roomId).name}に参加しました`);
+    closeMenu();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
+}
 
-  userIdInput.value = '';
-  userNameInput.value = '';
+function handleProfileSettings() {
+  if (!appState.currentUser) return;
+  const name = normalizeString(prompt('新しい名前を入力してください', appState.currentUser.name));
+  if (!name) return;
+  appState.currentUser.name = name;
+  closeMenu();
+  renderAll();
+}
+
+function handleLeaveCircle() {
+  if (!appState.currentUser || !appState.currentCircleId) return;
+  try {
+    leaveCircle({
+      userId: appState.currentUser.userId,
+      circleId: appState.currentCircleId,
+    });
+    const nextMembership = appState.memberships.find(
+      (membership) => membership.userId === appState.currentUser.userId
+    );
+    appState.currentCircleId = nextMembership ? nextMembership.circleId : null;
+    appState.selectedCircleId = appState.currentCircleId;
+    appState.selectedEventId = getCurrentCircleEvents()[0]?.eventId || null;
+    closeMenu();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function handleLogout() {
+  appState.currentUser = null;
+  appState.selectedCircleId = null;
+  appState.currentCircleId = null;
+  appState.selectedEventId = null;
+  closeMenu();
+  renderAll();
+}
+
+function closeMenu() {
+  const menu = document.getElementById('app-menu');
+  const toggle = document.getElementById('menu-toggle');
+  menu.hidden = true;
+  toggle.setAttribute('aria-expanded', 'false');
+}
+
+function toggleMenu() {
+  if (!appState.currentUser) return;
+  const menu = document.getElementById('app-menu');
+  const toggle = document.getElementById('menu-toggle');
+  const isOpen = !menu.hidden;
+  menu.hidden = isOpen;
+  toggle.setAttribute('aria-expanded', String(!isOpen));
+}
+
+function handleMemberPayment(event, status) {
+  if (!appState.currentUser) return;
+  try {
+    if (status === 'pending') {
+      if (confirm('元に戻しますか？')) {
+        revertPaymentPending({
+          userId: appState.currentUser.userId,
+          circleId: event.circleId,
+          eventId: event.eventId,
+        });
+      }
+    } else if (status === 'unpaid') {
+      markPaymentPending({
+        userId: appState.currentUser.userId,
+        circleId: event.circleId,
+        eventId: event.eventId,
+      });
+    }
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function handleLeaderPaymentDecision(event, memberId, status) {
+  if (!appState.currentUser || !isCurrentUserLeader()) return;
+  try {
+    updatePaymentStatus({
+      actingUserId: appState.currentUser.userId,
+      circleId: event.circleId,
+      eventId: event.eventId,
+      memberId,
+      status,
+    });
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function handleAddEventSubmit(event) {
   event.preventDefault();
-
-  const eventName = document.getElementById('event-name').value.trim();
-  const eventAmount = Number(document.getElementById('event-amount').value);
-  const eventDate = document.getElementById('event-date').value;
-
-  if (!eventName || !eventDate || Number.isNaN(eventAmount) || eventAmount <= 0) {
-    alert('イベント名・金額・日付を正しく入力してください');
+  if (!appState.currentUser || !appState.currentCircleId) {
+    alert('先にサークルを選択してください');
     return;
   }
-
-  const checkedBoxes = document.querySelectorAll('#participant-checkbox-list input:checked');
-  const selectedUserIds = Array.from(checkedBoxes).map((checkbox) => checkbox.value);
-
-  const participantRecords =
-    selectedUserIds.length > 0
-      ? selectedUserIds
-          .map((userId) => buildParticipantRecord(userId))
-          .filter(Boolean)
-      : appState.users.map((user) => ({
-          userId: user.userId,
-          name: user.name,
-          status: '未入金',
-        }));
-
-  const newEvent = {
-    id: createId('event'),
-    name: eventName,
-    amount: eventAmount,
-    date: eventDate,
-    participants: participantRecords,
-  };
-
-  appState.events.push(newEvent);
-  appState.selectedEventId = newEvent.id;
-  closeModal('add-event-modal');
-  clearModalInputs('add-event-modal');
-  renderAll();
+  if (!isLeader(appState.currentUser.userId, appState.currentCircleId)) {
+    alert('幹部権限がないためイベントを追加できません');
+    return;
+  }
+  const title = normalizeString(document.getElementById('event-name').value);
+  const amount = Number(document.getElementById('event-amount').value);
+  const deadline = document.getElementById('event-date').value;
+  const targetMemberIds = [...document.querySelectorAll('#participant-checkbox-list input:checked')].map(
+    (input) => input.value
+  );
+  try {
+    const created = createEvent({
+      circleId: appState.currentCircleId,
+      createdByUserId: appState.currentUser.userId,
+      title,
+      amount,
+      targetMemberIds,
+      deadline,
+    });
+    appState.selectedEventId = created.eventId;
+    closeModal('add-event-modal');
+    document.getElementById('add-event-form').reset();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function handleEditEventSubmit(event) {
   event.preventDefault();
-
-  const selectedEvent = getSelectedEvent();
-  if (!selectedEvent) return;
-
-  const name = document.getElementById('edit-event-name').value.trim();
-  const amount = Number(document.getElementById('edit-event-amount').value);
-  const date = document.getElementById('edit-event-date').value;
-
-  if (!name || !date || Number.isNaN(amount) || amount <= 0) {
-    alert('イベント名・金額・日付を正しく入力してください');
+  if (!isCurrentUserLeader()) {
+    alert('幹部権限がないためイベントを編集できません');
     return;
   }
-
-  selectedEvent.name = name;
-  selectedEvent.amount = amount;
-  selectedEvent.date = date;
-
+  const selected = getSelectedEvent();
+  if (!selected) return;
+  selected.title = normalizeString(document.getElementById('edit-event-name').value);
+  selected.amount = Number(document.getElementById('edit-event-amount').value);
+  selected.deadline = normalizeDateValue(document.getElementById('edit-event-date').value);
   closeModal('edit-event-modal');
   renderAll();
 }
 
-function handleDeleteEvent() {
-  const selectedEvent = getSelectedEvent();
-  if (!selectedEvent) return;
-
-  appState.events = appState.events.filter((event) => event.id !== selectedEvent.id);
-  appState.selectedEventId = appState.events[0]?.id || null;
-  closeModal('delete-event-modal');
-  renderAll();
-}
-
-function handleStatusFormSubmit(event) {
-  event.preventDefault();
-
-  const selectedEvent = getSelectedEvent();
-  if (!selectedEvent || !appState.changingParticipantId) return;
-
-  const nextStatus = document.getElementById('status-select').value;
-  const participant = selectedEvent.participants.find(
-    (item) => item.userId === appState.changingParticipantId
-  );
-
-  if (!participant) return;
-
-  participant.status = nextStatus;
-  appState.changingParticipantId = null;
-
-  closeModal('status-modal');
-  renderAll();
-}
-
-function openAddEventModal() {
-  renderParticipantCheckboxList();
-  showModal('add-event-modal');
-}
-
-function openEditEventModal() {
-  const event = getSelectedEvent();
-  if (!event) return;
-
-  document.getElementById('edit-event-name').value = event.name;
-  document.getElementById('edit-event-amount').value = event.amount;
-  document.getElementById('edit-event-date').value = event.date;
-  showModal('edit-event-modal');
-}
-
-function openDeleteEventModal() {
-  const event = getSelectedEvent();
-  if (!event) return;
-  showModal('delete-event-modal');
-}
-
 function bindGlobalEvents() {
   document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
-
-  document.querySelector('.add-event-button').addEventListener('click', openAddEventModal);
+  document.getElementById('menu-toggle').addEventListener('click', toggleMenu);
+  document.getElementById('menu-close').addEventListener('click', closeMenu);
+  document.querySelector('.header-add-circle-button').addEventListener('click', handleCreateCircle);
+  document.getElementById('profile-settings-button').addEventListener('click', handleProfileSettings);
+  document.getElementById('leave-circle-button').addEventListener('click', handleLeaveCircle);
+  document.getElementById('menu-add-circle-button').addEventListener('click', handleCreateCircle);
+  document.getElementById('join-circle-button').addEventListener('click', handleJoinCircle);
+  document.getElementById('logout-button').addEventListener('click', handleLogout);
+  document.querySelector('.add-event-button').addEventListener('click', () => {
+    if (
+      !appState.currentUser ||
+      !appState.currentCircleId ||
+      !isLeader(appState.currentUser.userId, appState.currentCircleId)
+    ) {
+      return;
+    }
+    renderParticipantCheckboxList();
+    showModal('add-event-modal');
+  });
   document.getElementById('add-event-form').addEventListener('submit', handleAddEventSubmit);
-
-  document.querySelector('.edit-event-button').addEventListener('click', openEditEventModal);
+  document.querySelector('.edit-event-button').addEventListener('click', () => {
+    if (!isCurrentUserLeader()) {
+      return;
+    }
+    const selected = getSelectedEvent();
+    if (!selected) return;
+    document.getElementById('edit-event-name').value = selected.title;
+    document.getElementById('edit-event-amount').value = selected.amount;
+    document.getElementById('edit-event-date').value = selected.deadline
+      ? selected.deadline.slice(0, 10)
+      : '';
+    showModal('edit-event-modal');
+  });
+  document.querySelector('.delete-event-button').addEventListener('click', () => {
+    if (!isCurrentUserLeader()) return;
+    showModal('delete-event-modal');
+  });
+  document.querySelector('.confirm-delete-button').addEventListener('click', () => {
+    if (!isCurrentUserLeader()) return;
+    appState.events = appState.events.filter((event) => event.eventId !== appState.selectedEventId);
+    appState.selectedEventId = getCurrentCircleEvents()[0]?.eventId || null;
+    closeModal('delete-event-modal');
+    renderAll();
+  });
   document.getElementById('edit-event-form').addEventListener('submit', handleEditEventSubmit);
-
-  document.querySelector('.delete-event-button').addEventListener('click', openDeleteEventModal);
-  document.querySelector('.confirm-delete-button').addEventListener('click', handleDeleteEvent);
-
-  document.getElementById('status-form').addEventListener('submit', handleStatusFormSubmit);
-
-  document.querySelectorAll('.modal-close, .modal-cancel').forEach((element) => {
-    element.addEventListener('click', () => {
-      const modal = element.closest('.modal');
-      if (modal) {
-        closeModal(modal.id);
-      }
-    });
+  document.getElementById('status-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const selected = getSelectedEvent();
+    if (!selected || !appState.currentUser) return;
+    try {
+      updatePaymentStatus({
+        actingUserId: appState.currentUser.userId,
+        circleId: selected.circleId,
+        eventId: selected.eventId,
+        memberId: appState.changingParticipantId,
+        status: document.getElementById('status-select').value,
+      });
+      appState.changingParticipantId = null;
+      closeModal('status-modal');
+      renderAll();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+  document.querySelectorAll('.modal-close, .modal-cancel').forEach((button) => {
+    button.addEventListener('click', () => closeModal(button.closest('.modal').id));
   });
 }
 
-function init() {
-  bindGlobalEvents();
-  renderAll();
-}
+seedTestData();
 
-document.addEventListener('DOMContentLoaded', init);
+const accountingSystem = {
+  appState,
+  createUser,
+  registerUser,
+  loginUser,
+  getUserByLoginInfo,
+  findUserByEmail,
+  findUserBySnsId,
+  createCircle,
+  joinCircle,
+  grantLeaderRole,
+  leaveCircle,
+  createEvent,
+  getCircleMembers,
+  getMyEventsForCircle,
+  getEventStatusSummary,
+  getEventDeadlineInfo,
+  updatePaymentStatus,
+  markPaymentPending,
+  revertPaymentPending,
+  getCircleSummary,
+  findEventById,
+};
 
 if (typeof window !== 'undefined') {
-  window.accountingApp = {
-    appState,
-    getSelectedEvent,
-    getEventById,
-    renderAll,
-  };
+  window.accountingSystem = accountingSystem;
+  window.accountingApp = { appState, getSelectedEvent, renderAll };
+  document.addEventListener('DOMContentLoaded', () => {
+    closeMenu();
+    bindGlobalEvents();
+    renderAll();
+  });
 }
