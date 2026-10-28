@@ -537,21 +537,37 @@ function renderCircleTabs() {
         .filter(Boolean)
     : [];
 
-  tabs.hidden = !appState.currentUser;
+  if (!appState.currentUser || circles.length === 0) {
+    tabs.hidden = true;
+    appState.currentCircleId = null;
+    appState.selectedCircleId = null;
+    return;
+  }
+
+  if (!appState.selectedCircleId || !circles.some((circle) => circle.circleId === appState.selectedCircleId)) {
+    appState.selectedCircleId = circles[0].circleId;
+  }
+
+  appState.currentCircleId = appState.selectedCircleId;
+  const firstEvent = getCurrentCircleEvents()[0];
+  if (!appState.selectedEventId || !getVisibleEvents().some((event) => event.eventId === appState.selectedEventId)) {
+    appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
+  }
+
+  tabs.hidden = false;
   circles.forEach((circle) => {
     const tab = document.createElement('button');
     tab.type = 'button';
     tab.className = 'circle-tab';
     tab.textContent = circle.name;
+    tab.setAttribute('role', 'tab');
     tab.setAttribute('aria-selected', String(circle.circleId === appState.selectedCircleId));
     tab.classList.toggle('active', circle.circleId === appState.selectedCircleId);
     tab.addEventListener('click', () => {
       appState.selectedCircleId = circle.circleId;
-      if (appState.currentCircleId) {
-        appState.currentCircleId = circle.circleId;
-        const firstEvent = getCurrentCircleEvents()[0];
-        appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
-      }
+      appState.currentCircleId = circle.circleId;
+      const firstEvent = getCurrentCircleEvents()[0];
+      appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
       renderAll();
     });
     tabs.appendChild(tab);
@@ -562,7 +578,9 @@ function renderEventList() {
   const list = document.getElementById('event-list');
   if (!list) return;
   list.innerHTML = '';
-  getVisibleEvents().forEach((event) => {
+
+  const visibleEvents = getVisibleEvents();
+  visibleEvents.forEach((event) => {
     const item = document.createElement('li');
     item.dataset.eventId = event.eventId;
     item.classList.toggle('active', event.eventId === appState.selectedEventId);

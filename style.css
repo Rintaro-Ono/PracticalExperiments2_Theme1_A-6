@@ -248,52 +248,53 @@ th {
 
 .circle-tabs {
   order: 2;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
   width: 100%;
-  overflow: visible;
-  padding: 4px 0 0;
-  border-bottom: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 8px;
+  border-bottom: 1px solid #e3dac6;
+  scrollbar-width: thin;
+  scrollbar-color: #b9ae97 transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
-.lists-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
-  align-items: start;
-  gap: 14px;
-  width: 100%;
-  order: 3;
+.circle-tabs::-webkit-scrollbar {
+  height: 6px;
 }
 
-.lists-grid .event-panel,
-.lists-grid .participant-panel {
-  min-width: 0;
+.circle-tabs::-webkit-scrollbar-thumb {
+  background: #b9ae97;
+  border-radius: 999px;
 }
 
 .circle-tab {
-  width: 100%;
-  min-height: 40px;
-  margin-bottom: 0;
+  flex: 0 0 auto;
+  min-width: max-content;
+  min-height: 42px;
+  padding: 10px 16px;
   border: 1px solid #d8ccb4;
-  border-bottom: 3px solid transparent;
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 999px;
+  background: #f4efe8;
   color: #5d716b;
-  text-align: left;
+  text-align: center;
+  white-space: nowrap;
+  transition: all 0.2s ease;
 }
 
-.circle-tab:hover,
-.circle-tab.active {
-  opacity: 1;
+.circle-tab:hover {
   background: #fffdf9;
   color: #35564d;
 }
 
 .circle-tab.active {
-  border-color: #d8ccb4;
-  border-bottom-color: #7c9a92;
+  background: #7c9a92;
+  border-color: #7c9a92;
+  color: #fff;
   font-weight: 700;
+  box-shadow: 0 6px 16px rgba(124, 154, 146, 0.28);
 }
 
 .circle-controls {
