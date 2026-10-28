@@ -134,12 +134,15 @@ th {
   align-items: flex-start;
   flex-direction: column;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
 }
 
 .header-main {
   display: flex;
   align-items: center;
   width: 100%;
+  max-width: 100%;
   gap: 12px;
 }
 
@@ -252,6 +255,7 @@ th {
   flex-wrap: nowrap;
   gap: 8px;
   width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   padding: 4px 2px 8px;
@@ -259,6 +263,7 @@ th {
   scrollbar-width: thin;
   scrollbar-color: #b9ae97 transparent;
   -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: auto;
 }
 
 .circle-tabs::-webkit-scrollbar {
