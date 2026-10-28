@@ -7,6 +7,7 @@ body {
   font-family: "Segoe UI", sans-serif;
   background: linear-gradient(180deg, #f4f1ea 0%, #efe7dc 100%);
   color: #2d2d2d;
+  overflow-x: hidden;
 }
 
 .container {
@@ -144,11 +145,16 @@ th {
   width: 100%;
   max-width: 100%;
   gap: 12px;
+  min-width: 0;
 }
 
 .header-main h1 {
-  flex: 1;
+  flex: 1 1 auto;
   margin-bottom: 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .menu-toggle {
@@ -175,6 +181,11 @@ th {
 
 .header-add-circle-button {
   background: #b88b5a;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-width: auto;
+  padding: 8px 12px;
+  font-size: 0.85rem;
 }
 
 .app-menu {
@@ -279,7 +290,7 @@ th {
   flex: 0 0 auto;
   min-width: max-content;
   min-height: 42px;
-  padding: 10px 16px;
+  padding: 10px 14px;
   border: 1px solid #d8ccb4;
   border-radius: 999px;
   background: #f4efe8;
