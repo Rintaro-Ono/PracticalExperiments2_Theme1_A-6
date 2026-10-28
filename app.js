@@ -549,9 +549,8 @@ function renderCircleTabs() {
   }
 
   appState.currentCircleId = appState.selectedCircleId;
-  const firstEvent = getCurrentCircleEvents()[0];
-  if (!appState.selectedEventId || !getVisibleEvents().some((event) => event.eventId === appState.selectedEventId)) {
-    appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
+  if (appState.selectedEventId && !getVisibleEvents().some((event) => event.eventId === appState.selectedEventId)) {
+    appState.selectedEventId = null;
   }
 
   tabs.hidden = false;
@@ -566,8 +565,7 @@ function renderCircleTabs() {
     tab.addEventListener('click', () => {
       appState.selectedCircleId = circle.circleId;
       appState.currentCircleId = circle.circleId;
-      const firstEvent = getCurrentCircleEvents()[0];
-      appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
+      appState.selectedEventId = null;
       renderAll();
     });
     tabs.appendChild(tab);
@@ -807,8 +805,7 @@ function handleLoginSubmit(event) {
   const membership = appState.memberships.find((item) => item.userId === user.userId);
   appState.selectedCircleId = membership ? membership.circleId : null;
   appState.currentCircleId = appState.selectedCircleId;
-  const firstEvent = getCurrentCircleEvents()[0];
-  appState.selectedEventId = firstEvent ? firstEvent.eventId : null;
+  appState.selectedEventId = null;
   renderAll();
 }
 
@@ -841,7 +838,7 @@ function handleJoinCircle() {
     });
     appState.selectedCircleId = roomId;
     appState.currentCircleId = roomId;
-    appState.selectedEventId = getCurrentCircleEvents()[0]?.eventId || null;
+    appState.selectedEventId = null;
     alert(`${findCircleById(roomId).name}に参加しました`);
     closeMenu();
     renderAll();
@@ -871,7 +868,7 @@ function handleLeaveCircle() {
     );
     appState.currentCircleId = nextMembership ? nextMembership.circleId : null;
     appState.selectedCircleId = appState.currentCircleId;
-    appState.selectedEventId = getCurrentCircleEvents()[0]?.eventId || null;
+    appState.selectedEventId = null;
     closeMenu();
     renderAll();
   } catch (error) {
@@ -1035,7 +1032,7 @@ function bindGlobalEvents() {
   document.querySelector('.confirm-delete-button').addEventListener('click', () => {
     if (!isCurrentUserLeader()) return;
     appState.events = appState.events.filter((event) => event.eventId !== appState.selectedEventId);
-    appState.selectedEventId = getCurrentCircleEvents()[0]?.eventId || null;
+    appState.selectedEventId = null;
     closeModal('delete-event-modal');
     renderAll();
   });
