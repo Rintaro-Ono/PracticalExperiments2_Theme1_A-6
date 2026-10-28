@@ -706,6 +706,7 @@ function renderLoginState() {
     loggedIn &&
     hasJoinedCircle &&
     isLeader(appState.currentUser.userId, appState.currentCircleId);
+
   document.querySelector('.login-panel').hidden = loggedIn;
   document.getElementById('menu-toggle').hidden = !loggedIn;
   if (!loggedIn) {
@@ -718,11 +719,64 @@ function renderLoginState() {
     !hasJoinedCircle || !getSelectedEvent();
   document.getElementById('participant-panel').hidden =
     !hasJoinedCircle || !getSelectedEvent() || !canManageCircle;
+
+  const circleRoomBar = document.getElementById('circle-room-bar');
+  if (circleRoomBar) {
+    const shouldHideRoomBar = !loggedIn || !hasJoinedCircle;
+    circleRoomBar.hidden = shouldHideRoomBar;
+    circleRoomBar.style.display = shouldHideRoomBar ? 'none' : 'flex';
+  }
+
   renderCircleTabs();
+}
+
+function renderCircleRoomBar() {
+  const roomBar = document.getElementById('circle-room-bar');
+  const roomIdEl = document.getElementById('circle-room-id');
+  const copyButton = document.getElementById('copy-room-id-button');
+
+  if (!roomBar || !roomIdEl || !copyButton) return;
+
+  const shouldShow = Boolean(appState.currentUser && appState.currentCircleId);
+  roomBar.hidden = !shouldShow;
+  roomBar.style.display = shouldShow ? 'flex' : 'none';
+
+  if (!shouldShow) {
+    roomIdEl.textContent = '-';
+    copyButton.disabled = true;
+    return;
+  }
+
+  const currentCircle = findCircleById(appState.currentCircleId);
+  roomIdEl.textContent = currentCircle ? currentCircle.circleId : '-';
+  copyButton.disabled = !currentCircle;
+  if (!currentCircle) return;
+
+  copyButton.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(currentCircle.circleId);
+      copyButton.textContent = 'コピー済み';
+      setTimeout(() => {
+        copyButton.textContent = 'コピー';
+      }, 1200);
+    } catch (error) {
+      const fallback = document.createElement('textarea');
+      fallback.value = currentCircle.circleId;
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      document.body.removeChild(fallback);
+      copyButton.textContent = 'コピー済み';
+      setTimeout(() => {
+        copyButton.textContent = 'コピー';
+      }, 1200);
+    }
+  };
 }
 
 function renderAll() {
   renderLoginState();
+  renderCircleRoomBar();
   renderEventList();
   renderEventDetail();
   renderParticipantCheckboxList();
