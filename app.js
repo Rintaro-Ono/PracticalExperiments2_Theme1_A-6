@@ -583,109 +583,117 @@ function renderEventList() {
   visibleEvents.forEach((event) => {
     const item = document.createElement('li');
     item.dataset.eventId = event.eventId;
-    item.classList.toggle('active', event.eventId === appState.selectedEventId);
-    const title = document.createElement('span');
-    title.className = 'event-name';
-    title.textContent = event.title;
-    const amount = document.createElement('span');
-    amount.className = 'event-amount';
-    amount.textContent = `¥${event.amount.toLocaleString()}`;
-    const date = document.createElement('span');
-    date.className = 'event-date';
-    date.textContent = event.deadline
-      ? new Date(event.deadline).toLocaleDateString('ja-JP')
-      : '日付なし';
-    item.append(title, amount, date);
+    item.className = 'event-list-item';
+    item.classList.toggle('is-open', event.eventId === appState.selectedEventId);
 
-    if (!isCurrentUserLeader() && appState.currentUser) {
-      const membership = getMembershipForUserInCircle(
-        appState.currentUser.userId,
-        event.circleId
-      );
-      const memberId = membership?.memberId;
-      const status = memberId ? event.paymentStatus[memberId] || 'unpaid' : 'unpaid';
-      const paymentButton = document.createElement('button');
-      paymentButton.type = 'button';
-      paymentButton.className = 'payment-button';
-      paymentButton.textContent =
-        status === 'pending'
-          ? '確認中'
-          : status === 'approved'
-            ? '承認済み'
-            : '入金しました';
-      paymentButton.disabled = status === 'approved';
-      paymentButton.classList.toggle('is-pending', status === 'pending');
-      paymentButton.addEventListener('click', (clickEvent) => {
-        clickEvent.stopPropagation();
-        handleMemberPayment(event, status);
-      });
-      item.appendChild(paymentButton);
-    }
+    const summary = document.createElement('button');
+    summary.type = 'button';
+    summary.className = 'event-summary';
+    summary.innerHTML = `
+      <span class="event-summary__title">${event.title}</span>
+      <span class="event-summary__meta">${event.deadline ? new Date(event.deadline).toLocaleDateString('ja-JP') : '日付なし'}</span>
+    `;
 
-    item.addEventListener('click', () => {
-      appState.selectedEventId = event.eventId;
+    summary.addEventListener('click', () => {
+      appState.selectedEventId = appState.selectedEventId === event.eventId ? null : event.eventId;
       renderAll();
     });
+
+    item.appendChild(summary);
+
+    if (event.eventId === appState.selectedEventId) {
+      const detail = document.createElement('div');
+      detail.className = 'event-detail-inline';
+
+      const meta = document.createElement('div');
+      meta.className = 'event-detail-inline__meta';
+      meta.innerHTML = `
+        <span>金額: ¥${event.amount.toLocaleString()}</span>
+        <span>${event.deadline ? new Date(event.deadline).toLocaleDateString('ja-JP') : '日付なし'}</span>
+      `;
+      detail.appendChild(meta);
+
+      if (isCurrentUserLeader()) {
+        const participantList = document.createElement('div');
+        participantList.className = 'event-participant-list';
+
+        getEventStatusSummary(event.circleId, event.eventId).forEach((participant) => {
+          const row = document.createElement('div');
+          row.className = 'event-participant-row';
+
+          const left = document.createElement('div');
+          left.className = 'event-participant-row__name';
+          left.textContent = participant.name;
+
+          const status = document.createElement('div');
+          status.className = 'event-participant-row__status';
+          status.textContent = STATUS_LABELS[participant.status];
+
+          const actions = document.createElement('div');
+          actions.className = 'event-participant-row__actions';
+          if (participant.status === 'pending') {
+            const approveButton = document.createElement('button');
+            approveButton.type = 'button';
+            approveButton.className = 'small-action approve-button';
+            approveButton.textContent = '承認';
+            approveButton.addEventListener('click', () =>
+              handleLeaderPaymentDecision(event, participant.memberId, 'approved')
+            );
+
+            const rejectButton = document.createElement('button');
+            rejectButton.type = 'button';
+            rejectButton.className = 'small-action reject-button';
+            rejectButton.textContent = '却下';
+            rejectButton.addEventListener('click', () =>
+              handleLeaderPaymentDecision(event, participant.memberId, 'unpaid')
+            );
+
+            actions.append(approveButton, rejectButton);
+          }
+
+          row.append(left, status, actions);
+          participantList.appendChild(row);
+        });
+
+        detail.appendChild(participantList);
+      } else if (appState.currentUser) {
+        const membership = getMembershipForUserInCircle(
+          appState.currentUser.userId,
+          event.circleId
+        );
+        const memberId = membership?.memberId;
+        const status = memberId ? event.paymentStatus[memberId] || 'unpaid' : 'unpaid';
+        const memberButton = document.createElement('button');
+        memberButton.type = 'button';
+        memberButton.className = 'payment-button';
+        memberButton.textContent =
+          status === 'pending'
+            ? '確認中'
+            : status === 'approved'
+              ? '承認済み'
+              : '入金報告';
+        memberButton.disabled = status === 'approved';
+        memberButton.classList.toggle('is-pending', status === 'pending');
+        memberButton.addEventListener('click', (clickEvent) => {
+          clickEvent.stopPropagation();
+          handleMemberPayment(event, status);
+        });
+        detail.appendChild(memberButton);
+      }
+
+      item.appendChild(detail);
+    }
+
     list.appendChild(item);
   });
 }
 
 function renderEventDetail() {
-  const event = getSelectedEvent();
   const detailPanel = document.getElementById('event-detail-panel');
   const participantPanel = document.getElementById('participant-panel');
-  const canManageCircle =
-    Boolean(appState.currentUser) &&
-    Boolean(appState.currentCircleId) &&
-    isLeader(appState.currentUser.userId, appState.currentCircleId);
   if (!detailPanel || !participantPanel) return;
-  detailPanel.hidden = !event;
-  participantPanel.hidden = !event || !canManageCircle;
-  document.querySelector('.action-buttons').hidden = !canManageCircle;
-  document.getElementById('detail-participant-title').hidden = !canManageCircle;
-  document.getElementById('detail-participant-list').hidden = !canManageCircle;
-  if (!event) return;
-
-  document.getElementById('detail-event-name').textContent = event.title;
-  document.getElementById('detail-event-amount').textContent = `¥${event.amount.toLocaleString()}`;
-  document.getElementById('detail-event-date').textContent =
-    event.deadline ? new Date(event.deadline).toLocaleDateString('ja-JP') : '期限なし';
-
-  const detailList = document.getElementById('detail-participant-list');
-  const tableBody = document.getElementById('participant-table-body');
-  detailList.innerHTML = '';
-  tableBody.innerHTML = '';
-  getEventStatusSummary(event.circleId, event.eventId).forEach((participant) => {
-    const detailItem = document.createElement('li');
-    detailItem.textContent = participant.name;
-    detailList.appendChild(detailItem);
-
-    const row = document.createElement('tr');
-    row.dataset.memberId = participant.memberId;
-    const nameCell = document.createElement('td');
-    nameCell.textContent = participant.name;
-    const statusCell = document.createElement('td');
-    statusCell.textContent = STATUS_LABELS[participant.status];
-    row.append(nameCell, statusCell);
-    if (participant.status === 'pending') {
-      const approveButton = document.createElement('button');
-      approveButton.type = 'button';
-      approveButton.className = 'status-action approve-button';
-      approveButton.textContent = '承認';
-      approveButton.addEventListener('click', () =>
-        handleLeaderPaymentDecision(event, participant.memberId, 'approved')
-      );
-      const rejectButton = document.createElement('button');
-      rejectButton.type = 'button';
-      rejectButton.className = 'status-action reject-button';
-      rejectButton.textContent = '却下';
-      rejectButton.addEventListener('click', () =>
-        handleLeaderPaymentDecision(event, participant.memberId, 'unpaid')
-      );
-      statusCell.append(approveButton, rejectButton);
-    }
-    tableBody.appendChild(row);
-  });
+  detailPanel.hidden = true;
+  participantPanel.hidden = true;
 }
 
 function renderParticipantCheckboxList() {
@@ -715,10 +723,8 @@ function renderLoginState() {
   document.getElementById('event-panel').hidden = !hasJoinedCircle;
   document.querySelector('.add-event-button').hidden = !canManageCircle;
   document.querySelector('.header-add-circle-button').hidden = !loggedIn;
-  document.getElementById('event-detail-panel').hidden =
-    !hasJoinedCircle || !getSelectedEvent();
-  document.getElementById('participant-panel').hidden =
-    !hasJoinedCircle || !getSelectedEvent() || !canManageCircle;
+  document.getElementById('event-detail-panel').hidden = true;
+  document.getElementById('participant-panel').hidden = true;
 
   const circleRoomBar = document.getElementById('circle-room-bar');
   if (circleRoomBar) {
